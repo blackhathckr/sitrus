@@ -126,6 +126,9 @@ async function ensureCreatorProfile(
 // =============================================================================
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  // Trust the host header on Vercel (required for cookie domain resolution)
+  trustHost: true,
+
   // ---------------------------------------------------------------------------
   // Session strategy
   // ---------------------------------------------------------------------------
