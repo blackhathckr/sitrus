@@ -9,9 +9,7 @@ const nextConfig = {
     buildActivityPosition: 'bottom-right',
   },
   images: {
-    remotePatterns: [
-      { protocol: 'https', hostname: '**' },
-    ],
+    unoptimized: true,
   },
 };
 
