@@ -35,12 +35,3 @@ if (process.env.NODE_ENV !== 'production') {
   global.prisma = prisma;
 }
 
-/**
- * Graceful shutdown handler
- * Ensures database connections are closed properly
- */
-if (process.env.NODE_ENV === 'production') {
-  process.on('beforeExit', async () => {
-    await prisma.$disconnect();
-  });
-}
