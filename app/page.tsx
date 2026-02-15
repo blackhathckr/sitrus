@@ -14,7 +14,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, ChevronRight, Search, User } from 'lucide-react';
+import { ArrowRight, Search, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { HeroLottie } from '@/components/landing/hero-lottie';
@@ -24,11 +24,11 @@ import { HeroLottie } from '@/components/landing/hero-lottie';
 // =============================================================================
 
 const brands = [
-  { name: 'Myntra', commission: '8%', logo: null },
-  { name: 'Ajio', commission: '8%', logo: null },
-  { name: 'Flipkart', commission: '6%', logo: null },
-  { name: 'Amazon', commission: '5%', logo: null },
-  { name: 'Nykaa', commission: '7%', logo: null },
+  { name: 'Myntra', commission: '8%', logo: 'https://placehold.co/120x60/FF3F6C/white?text=Myntra' },
+  { name: 'Ajio', commission: '8%', logo: 'https://placehold.co/120x60/3B82F6/white?text=Ajio' },
+  { name: 'Flipkart', commission: '6%', logo: 'https://placehold.co/120x60/2874F0/white?text=Flipkart' },
+  { name: 'Amazon', commission: '5%', logo: 'https://placehold.co/120x60/FF9900/white?text=Amazon' },
+  { name: 'Nykaa', commission: '7%', logo: 'https://placehold.co/120x60/FC2779/white?text=Nykaa' },
 ];
 
 const processSteps = [
@@ -170,20 +170,24 @@ export default function LandingPage() {
         {/* Top Brands                                                       */}
         {/* ================================================================ */}
         <section className="mx-auto max-w-7xl px-4 py-16 lg:px-8">
-          <h2 className="mb-8 text-2xl font-bold tracking-tight">Top Brands</h2>
+          <h2 className="mb-8 text-center text-2xl font-bold tracking-tight">Top Brands</h2>
 
-          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+          <div className="flex flex-wrap items-center justify-center gap-4">
             {brands.map((brand) => (
               <div
                 key={brand.name}
                 className="group relative flex shrink-0 flex-col items-center rounded-xl border-2 border-primary/60 bg-card p-4 transition-all hover:border-primary hover:shadow-md"
-                style={{ width: '160px', height: '180px' }}
+                style={{ width: '170px', height: '180px' }}
               >
-                {/* Placeholder brand logo area */}
+                {/* Brand logo */}
                 <div className="flex flex-1 items-center justify-center">
-                  <span className="text-2xl font-bold text-muted-foreground/40">
-                    {brand.name.charAt(0)}
-                  </span>
+                  <Image
+                    src={brand.logo}
+                    alt={brand.name}
+                    width={120}
+                    height={60}
+                    className="rounded object-contain"
+                  />
                 </div>
                 {/* Commission label */}
                 <div className="mt-auto w-full rounded-md bg-primary/5 py-2 text-center text-sm font-semibold text-primary">
@@ -191,16 +195,6 @@ export default function LandingPage() {
                 </div>
               </div>
             ))}
-          </div>
-
-          {/* Navigation arrows */}
-          <div className="mt-4 flex justify-end gap-2">
-            <button className="flex size-8 items-center justify-center rounded-full border text-muted-foreground hover:bg-muted transition-colors">
-              <ChevronRight className="size-4 rotate-180" />
-            </button>
-            <button className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-              <ChevronRight className="size-4" />
-            </button>
           </div>
         </section>
 
