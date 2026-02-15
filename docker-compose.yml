@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sitrus-postgres
+    environment:
+      POSTGRES_USER: sitrus
+      POSTGRES_PASSWORD: sitrus
+      POSTGRES_DB: sitrus
+    ports:
+      - '5432:5432'
+    volumes:
+      - sitrus-postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  sitrus-postgres-data:

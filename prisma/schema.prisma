@@ -1,0 +1,343 @@
+// Sitrus Social Commerce Platform — Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum UserRole {
+  ADMIN
+  CREATOR
+}
+
+enum Marketplace {
+  MYNTRA
+  FLIPKART
+  AJIO
+  AMAZON
+}
+
+enum EarningStatus {
+  PENDING
+  CONFIRMED
+  PAID
+  CANCELLED
+}
+
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  CLICK
+  PAYOUT_APPROVE
+  PAYOUT_REJECT
+}
+
+// =============================================================================
+// USER
+// =============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  phone         String?   @unique
+  password      String?
+  name          String
+  role          UserRole  @default(CREATOR)
+  isActive      Boolean   @default(true)
+  emailVerified Boolean   @default(false)
+  lastLogin     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // OAuth
+  googleId String? @unique
+  image    String?
+
+  // Relations
+  creatorProfile CreatorProfile?
+  links          Link[]
+  earnings       Earning[]
+  payouts        Payout[]
+  collections    Collection[]
+  auditLogs      AuditLog[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([role])
+  @@index([googleId])
+  @@map("users")
+}
+
+// =============================================================================
+// CREATOR PROFILE
+// =============================================================================
+
+model CreatorProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Profile
+  instagramHandle String?
+  bio             String? @db.Text
+  slug            String  @unique
+
+  // Storefront customization
+  avatarUrl   String?
+  bannerUrl   String?
+  displayName String?
+  tagline     String?
+
+  // Social links
+  youtubeUrl String?
+  twitterUrl String?
+
+  // Status
+  isApproved Boolean @default(false)
+  isPublic   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+  @@index([instagramHandle])
+  @@index([isApproved])
+  @@map("creator_profiles")
+}
+
+// =============================================================================
+// PRODUCT CATALOG
+// =============================================================================
+
+model Product {
+  id            String      @id @default(cuid())
+  title         String
+  description   String?     @db.Text
+  imageUrl      String
+  images        String[]    @default([])
+  price         Float
+  originalPrice Float?
+  currency      String      @default("INR")
+  sourceUrl     String
+  marketplace   Marketplace
+  category      String
+  subCategory   String?
+  brand         String?
+  rating        Float?
+  reviewCount   Int?
+  inStock       Boolean     @default(true)
+  isActive      Boolean     @default(true)
+
+  // Affiliate metadata
+  affiliateBaseUrl String?
+  commissionRate   Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  links              Link[]
+  collectionProducts CollectionProduct[]
+
+  @@index([marketplace])
+  @@index([category])
+  @@index([isActive])
+  @@index([brand])
+  @@map("products")
+}
+
+// =============================================================================
+// AFFILIATE LINKS (SitLinks)
+// =============================================================================
+
+model Link {
+  id        String  @id @default(cuid())
+  creatorId String
+  creator   User    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  shortCode    String  @unique
+  customAlias  String? @unique
+  affiliateUrl String
+  isActive     Boolean @default(true)
+
+  // Denormalized for performance
+  totalClicks Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  clicks   Click[]
+  earnings Earning[]
+
+  @@index([creatorId])
+  @@index([productId])
+  @@index([shortCode])
+  @@index([customAlias])
+  @@map("links")
+}
+
+// =============================================================================
+// CLICK TRACKING
+// =============================================================================
+
+model Click {
+  id     String @id @default(cuid())
+  linkId String
+  link   Link   @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  ipHash    String? // Hashed IP for privacy
+  userAgent String? @db.Text
+  referrer  String?
+  country   String?
+  city      String?
+  device    String? // mobile, desktop, tablet
+  browser   String?
+  os        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([linkId])
+  @@index([createdAt])
+  @@index([country])
+  @@map("clicks")
+}
+
+// =============================================================================
+// COLLECTIONS
+// =============================================================================
+
+model Collection {
+  id        String @id @default(cuid())
+  creatorId String
+  creator   User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String? @db.Text
+  coverImage  String?
+  slug        String
+  isPublic    Boolean @default(true)
+  order       Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  products CollectionProduct[]
+
+  @@unique([creatorId, slug])
+  @@index([creatorId])
+  @@map("collections")
+}
+
+model CollectionProduct {
+  id           String     @id @default(cuid())
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order        Int        @default(0)
+
+  addedAt DateTime @default(now())
+
+  @@unique([collectionId, productId])
+  @@index([collectionId])
+  @@index([productId])
+  @@map("collection_products")
+}
+
+// =============================================================================
+// EARNINGS
+// =============================================================================
+
+model Earning {
+  id        String @id @default(cuid())
+  creatorId String
+  creator   User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  linkId    String?
+  link      Link?  @relation(fields: [linkId], references: [id], onDelete: SetNull)
+
+  amount      Float
+  currency    String        @default("INR")
+  status      EarningStatus @default(PENDING)
+  period      String // "2026-02", "2026-W06"
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([creatorId])
+  @@index([linkId])
+  @@index([status])
+  @@index([period])
+  @@map("earnings")
+}
+
+// =============================================================================
+// PAYOUTS
+// =============================================================================
+
+model Payout {
+  id        String @id @default(cuid())
+  creatorId String
+  creator   User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  amount      Float
+  currency    String       @default("INR")
+  status      PayoutStatus @default(PENDING)
+  method      String? // upi, bank_transfer
+  approvedBy  String?
+  processedAt DateTime?
+  reference   String? // Transaction reference
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([creatorId])
+  @@index([status])
+  @@map("payouts")
+}
+
+// =============================================================================
+// AUDIT LOG
+// =============================================================================
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  userId     String?
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     AuditAction
+  entityType String
+  entityId   String
+  changes    Json?
+  ipAddress  String?
+  userAgent  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
