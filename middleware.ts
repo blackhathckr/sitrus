@@ -1,8 +1,9 @@
 /**
  * Next.js Middleware for Sitrus Social Commerce Platform
  *
- * Handles authentication and role-based routing using NextAuth v5's
- * auth() wrapper, which correctly reads the authjs session cookie.
+ * Handles authentication and role-based routing at the Edge.
+ * Uses getToken() with the correct NextAuth v5 cookie name
+ * (authjs.session-token) to read JWT without importing Prisma.
  *
  * Route access rules:
  *   - Public:      /, /login, /register
@@ -16,7 +17,8 @@
  */
 
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth/auth-options';
+import type { NextRequest } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 
 // =============================================================================
 // ROUTE CONFIGURATION
@@ -41,11 +43,17 @@ const KNOWN_ROUTE_PREFIXES = [
   'onboarding',
 ];
 
+// NextAuth v5 uses "authjs.session-token" (not "next-auth.session-token")
+const COOKIE_NAME =
+  process.env.NODE_ENV === 'production'
+    ? '__Secure-authjs.session-token'
+    : 'authjs.session-token';
+
 // =============================================================================
 // MIDDLEWARE
 // =============================================================================
 
-export default auth((request) => {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // ---------------------------------------------------------------------------
@@ -62,10 +70,17 @@ export default auth((request) => {
   }
 
   // ---------------------------------------------------------------------------
-  // 2. Get session from NextAuth v5 auth() wrapper
+  // 2. Get JWT token (Edge-compatible, no DB call)
+  //    Use the NextAuth v5 cookie name so the token is actually found.
   // ---------------------------------------------------------------------------
-  const session = request.auth;
-  const userRole = session?.user?.role as string | undefined;
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+    cookieName: COOKIE_NAME,
+    salt: COOKIE_NAME,
+  });
+
+  const userRole = token?.role as string | undefined;
 
   // ---------------------------------------------------------------------------
   // 3. Check if this is a public route
@@ -87,7 +102,7 @@ export default auth((request) => {
   // ---------------------------------------------------------------------------
   if (isPublicRoute || isDynamicSlugRoute) {
     // If authenticated user visits /login, redirect to their home
-    if (session && (pathname === '/login' || pathname === '/register')) {
+    if (token && (pathname === '/login' || pathname === '/register')) {
       if (userRole === 'ADMIN') {
         return NextResponse.redirect(new URL('/admin', request.url));
       }
@@ -100,7 +115,7 @@ export default auth((request) => {
   // ---------------------------------------------------------------------------
   // 6. Redirect unauthenticated users to login
   // ---------------------------------------------------------------------------
-  if (!session) {
+  if (!token) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
@@ -125,7 +140,7 @@ export default auth((request) => {
   }
 
   return NextResponse.next();
-});
+}
 
 // =============================================================================
 // MATCHER CONFIGURATION
