@@ -1,8 +1,8 @@
 /**
  * Next.js Middleware for Sitrus Social Commerce Platform
  *
- * Handles authentication and role-based routing at the Edge.
- * Uses JWT token decoding (Edge-compatible) from next-auth/jwt.
+ * Handles authentication and role-based routing using NextAuth v5's
+ * auth() wrapper, which correctly reads the authjs session cookie.
  *
  * Route access rules:
  *   - Public:      /, /login, /register
@@ -16,8 +16,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { getToken } from 'next-auth/jwt';
+import { auth } from '@/lib/auth/auth-options';
 
 // =============================================================================
 // ROUTE CONFIGURATION
@@ -46,7 +45,7 @@ const KNOWN_ROUTE_PREFIXES = [
 // MIDDLEWARE
 // =============================================================================
 
-export async function middleware(request: NextRequest) {
+export default auth((request) => {
   const { pathname } = request.nextUrl;
 
   // ---------------------------------------------------------------------------
@@ -63,14 +62,10 @@ export async function middleware(request: NextRequest) {
   }
 
   // ---------------------------------------------------------------------------
-  // 2. Get JWT token (Edge-compatible, no DB call)
+  // 2. Get session from NextAuth v5 auth() wrapper
   // ---------------------------------------------------------------------------
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
-
-  const userRole = token?.role as string | undefined;
+  const session = request.auth;
+  const userRole = session?.user?.role as string | undefined;
 
   // ---------------------------------------------------------------------------
   // 3. Check if this is a public route
@@ -92,7 +87,7 @@ export async function middleware(request: NextRequest) {
   // ---------------------------------------------------------------------------
   if (isPublicRoute || isDynamicSlugRoute) {
     // If authenticated user visits /login, redirect to their home
-    if (token && (pathname === '/login' || pathname === '/register')) {
+    if (session && (pathname === '/login' || pathname === '/register')) {
       if (userRole === 'ADMIN') {
         return NextResponse.redirect(new URL('/admin', request.url));
       }
@@ -105,7 +100,7 @@ export async function middleware(request: NextRequest) {
   // ---------------------------------------------------------------------------
   // 6. Redirect unauthenticated users to login
   // ---------------------------------------------------------------------------
-  if (!token) {
+  if (!session) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
@@ -116,7 +111,6 @@ export async function middleware(request: NextRequest) {
   // ---------------------------------------------------------------------------
   if (pathname.startsWith('/admin')) {
     if (userRole !== 'ADMIN') {
-      // Non-admin authenticated users go to creator dashboard
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
   }
@@ -126,13 +120,12 @@ export async function middleware(request: NextRequest) {
   // ---------------------------------------------------------------------------
   if (pathname.startsWith('/dashboard')) {
     if (userRole !== 'CREATOR') {
-      // Non-creator authenticated users (admins) go to admin panel
       return NextResponse.redirect(new URL('/admin', request.url));
     }
   }
 
   return NextResponse.next();
-}
+});
 
 // =============================================================================
 // MATCHER CONFIGURATION
@@ -140,13 +133,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
     '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 };
