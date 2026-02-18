@@ -90,7 +90,7 @@ export const fontConfigs: FontConfig[] = [
 
 export const fonts = fontConfigs.map((f) => f.id) as readonly string[]
 
-export const DEFAULT_FONT_ID = 'inter'
+export const DEFAULT_FONT_ID = 'montserrat'
 
 export const getFontById = (id: string): FontConfig | undefined =>
   fontConfigs.find((f) => f.id === id)
