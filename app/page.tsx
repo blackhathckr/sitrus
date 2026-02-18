@@ -326,7 +326,7 @@ export default function LandingPage() {
             <div className="flex items-center gap-1 text-sm">
               <span className="text-background/60">Follow us on:</span>
               <a
-                href="https://linkedin.com/company/sitrus"
+                href="https://www.linkedin.com/company/teamsitrus/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="ml-2 flex size-8 items-center justify-center rounded bg-[#0077B5] text-white transition-opacity hover:opacity-80"

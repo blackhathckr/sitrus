@@ -128,7 +128,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className="dark"
+      className=""
       suppressHydrationWarning
       data-palette=""
       data-depth="subtle"
