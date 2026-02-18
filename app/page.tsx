@@ -24,11 +24,11 @@ import { Input } from '@/components/ui/input';
 // =============================================================================
 
 const brands = [
-  { name: 'Myntra', commission: '8%', logo: 'https://placehold.co/120x60/FF3F6C/white?text=Myntra' },
-  { name: 'Ajio', commission: '8%', logo: 'https://placehold.co/120x60/3B82F6/white?text=Ajio' },
-  { name: 'Flipkart', commission: '6%', logo: 'https://placehold.co/120x60/2874F0/white?text=Flipkart' },
-  { name: 'Amazon', commission: '5%', logo: 'https://placehold.co/120x60/FF9900/white?text=Amazon' },
-  { name: 'Nykaa', commission: '7%', logo: 'https://placehold.co/120x60/FC2779/white?text=Nykaa' },
+  { name: 'Myntra', commission: '8%', logo: '/myntra.png' },
+  { name: 'Ajio', commission: '8%', logo: '/ajio.png' },
+  { name: 'Flipkart', commission: '6%', logo: '/flipkart.png' },
+  { name: 'Amazon', commission: '5%', logo: '/amazong.png' },
+  { name: 'Nykaa', commission: '7%', logo: '/nykaa.png' },
 ];
 
 const processSteps = [

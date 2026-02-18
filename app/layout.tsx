@@ -133,7 +133,7 @@ export default function RootLayout({
       data-palette=""
       data-depth="subtle"
     >
-      <body className={`${fontVariables} font-inter antialiased`}>
+      <body className={`${fontVariables} font-montserrat antialiased`}>
         <Providers>{children}</Providers>
       </body>
     </html>

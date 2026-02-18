@@ -24,7 +24,7 @@
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
   /* Brand Colors — Sitrus */
-  --color-sitrus-orange: oklch(0.68 0.22 35);
+  --color-sitrus-orange: oklch(0.61 0.245 28);
   --color-sitrus-deep: oklch(0.60 0.24 30);
   --color-sitrus-peach: oklch(0.90 0.08 35);
   --color-sitrus-dark: oklch(0.15 0.02 35);
@@ -83,7 +83,7 @@
   --card-foreground: oklch(0.145 0.02 35);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0.02 35);
-  --primary: oklch(0.68 0.22 35);
+  --primary: oklch(0.61 0.245 28);
   --primary-foreground: oklch(0.99 0.005 85);
   --secondary: oklch(0.95 0.02 35);
   --secondary-foreground: oklch(0.25 0.04 35);
@@ -94,20 +94,20 @@
   --destructive: oklch(0.577 0.245 27);
   --border: oklch(0.92 0.01 85);
   --input: oklch(0.92 0.01 85);
-  --ring: oklch(0.68 0.22 35);
-  --chart-1: oklch(0.68 0.22 35);
+  --ring: oklch(0.61 0.245 28);
+  --chart-1: oklch(0.61 0.245 28);
   --chart-2: oklch(0.60 0.24 30);
   --chart-3: oklch(0.75 0.15 55);
   --chart-4: oklch(0.55 0.18 15);
   --chart-5: oklch(0.82 0.12 75);
   --sidebar: oklch(0.985 0.003 85);
   --sidebar-foreground: oklch(0.145 0.02 35);
-  --sidebar-primary: oklch(0.68 0.22 35);
+  --sidebar-primary: oklch(0.61 0.245 28);
   --sidebar-primary-foreground: oklch(0.99 0.005 85);
   --sidebar-accent: oklch(0.95 0.02 35);
   --sidebar-accent-foreground: oklch(0.25 0.04 35);
   --sidebar-border: oklch(0.92 0.01 85);
-  --sidebar-ring: oklch(0.68 0.22 35);
+  --sidebar-ring: oklch(0.61 0.245 28);
 }
 
 /* ============================================================================
@@ -120,7 +120,7 @@
   --card-foreground: oklch(0.97 0.005 85);
   --popover: oklch(0.17 0.02 35);
   --popover-foreground: oklch(0.97 0.005 85);
-  --primary: oklch(0.68 0.22 35);
+  --primary: oklch(0.61 0.245 28);
   --primary-foreground: oklch(0.99 0.005 85);
   --secondary: oklch(0.22 0.03 35);
   --secondary-foreground: oklch(0.97 0.005 85);
@@ -131,20 +131,20 @@
   --destructive: oklch(0.704 0.191 22);
   --border: oklch(0.30 0.025 35);
   --input: oklch(0.30 0.025 35);
-  --ring: oklch(0.68 0.22 35);
-  --chart-1: oklch(0.68 0.22 35);
+  --ring: oklch(0.61 0.245 28);
+  --chart-1: oklch(0.61 0.245 28);
   --chart-2: oklch(0.60 0.24 30);
   --chart-3: oklch(0.75 0.15 55);
   --chart-4: oklch(0.55 0.18 15);
   --chart-5: oklch(0.82 0.12 75);
   --sidebar: oklch(0.10 0.012 35);
   --sidebar-foreground: oklch(0.97 0.005 85);
-  --sidebar-primary: oklch(0.68 0.22 35);
+  --sidebar-primary: oklch(0.61 0.245 28);
   --sidebar-primary-foreground: oklch(0.99 0.005 85);
   --sidebar-accent: oklch(0.22 0.03 35);
   --sidebar-accent-foreground: oklch(0.97 0.005 85);
   --sidebar-border: oklch(0.30 0.025 35);
-  --sidebar-ring: oklch(0.68 0.22 35);
+  --sidebar-ring: oklch(0.61 0.245 28);
 }
 
 /* ============================================================================
@@ -245,7 +245,7 @@
 
 /* Gradient backgrounds for cards/sections */
 .gradient-primary {
-  background: linear-gradient(135deg, oklch(0.68 0.22 35) 0%, oklch(0.60 0.24 30) 100%);
+  background: linear-gradient(135deg, oklch(0.61 0.245 28) 0%, oklch(0.60 0.24 30) 100%);
 }
 
 .gradient-accent {
@@ -257,7 +257,7 @@
 }
 
 .gradient-premium {
-  background: linear-gradient(135deg, oklch(0.68 0.22 35) 0%, oklch(0.75 0.16 55) 100%);
+  background: linear-gradient(135deg, oklch(0.61 0.245 28) 0%, oklch(0.75 0.16 55) 100%);
 }
 
 .gradient-gold {
@@ -309,14 +309,14 @@
 
 /* Text gradients */
 .text-gradient {
-  background: linear-gradient(135deg, oklch(0.68 0.22 35) 0%, oklch(0.60 0.24 30) 100%);
+  background: linear-gradient(135deg, oklch(0.61 0.245 28) 0%, oklch(0.60 0.24 30) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .dark .text-gradient {
-  background: linear-gradient(135deg, oklch(0.75 0.20 35) 0%, oklch(0.68 0.22 35) 100%);
+  background: linear-gradient(135deg, oklch(0.75 0.20 35) 0%, oklch(0.61 0.245 28) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
