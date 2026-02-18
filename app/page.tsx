@@ -17,7 +17,7 @@ import Image from 'next/image';
 import { ArrowRight, Search, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { HeroLottie } from '@/components/landing/hero-lottie';
+
 
 // =============================================================================
 // Data
@@ -133,9 +133,16 @@ export default function LandingPage() {
 
           <div className="mx-auto max-w-7xl px-4 py-16 lg:px-8 lg:py-24">
             <div className="grid items-center gap-8 lg:grid-cols-2">
-              {/* Left — Hero Illustration (Lottie placeholder) */}
+              {/* Left — Hero Illustration */}
               <div className="relative order-2 lg:order-1 flex items-center justify-center">
-                <HeroLottie />
+                <Image
+                  src="/hero.png"
+                  alt="Sitrus hero illustration"
+                  width={500}
+                  height={500}
+                  className="drop-shadow-lg"
+                  priority
+                />
               </div>
 
               {/* Right — Copy */}
