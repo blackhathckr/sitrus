@@ -44,9 +44,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Admin login form state
-  const [adminForm, setAdminForm] = useState({ email: '', password: '' });
-
   // Creator email login form state
   const [emailForm, setEmailForm] = useState({ email: '', password: '' });
 
@@ -86,34 +83,6 @@ export default function LoginPage() {
       } else {
         toast.success('Login successful!');
         router.push(callbackUrl);
-        router.refresh();
-      }
-    } catch {
-      toast.error('An error occurred during login');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ---------------------------------------------------------------------------
-  // Admin Email/Password Sign-In
-  // ---------------------------------------------------------------------------
-  const handleAdminSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      const result = await signIn('credentials', {
-        email: adminForm.email,
-        password: adminForm.password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        toast.error(result.error);
-      } else {
-        toast.success('Login successful!');
-        router.push('/admin');
         router.refresh();
       }
     } catch {
@@ -179,11 +148,10 @@ export default function LoginPage() {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="email" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="email">Email</TabsTrigger>
                   <TabsTrigger value="google">Google</TabsTrigger>
                   <TabsTrigger value="otp">Phone</TabsTrigger>
-                  <TabsTrigger value="admin">Admin</TabsTrigger>
                 </TabsList>
 
                 {/* Email Tab - Creator Email/Password */}
@@ -429,81 +397,6 @@ export default function LoginPage() {
                   </form>
                 </TabsContent>
 
-                {/* Admin Tab - Email/Password */}
-                <TabsContent value="admin" className="space-y-4 pt-4">
-                  <form onSubmit={handleAdminSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="admin-email">Email Address</Label>
-                      <Input
-                        id="admin-email"
-                        name="email"
-                        type="email"
-                        required
-                        value={adminForm.email}
-                        onChange={(e) =>
-                          setAdminForm((prev) => ({
-                            ...prev,
-                            email: e.target.value,
-                          }))
-                        }
-                        placeholder="admin@sitrus.club"
-                        disabled={isLoading}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="admin-password">Password</Label>
-                      <div className="relative">
-                        <Input
-                          id="admin-password"
-                          name="password"
-                          type={showPassword ? 'text' : 'password'}
-                          required
-                          value={adminForm.password}
-                          onChange={(e) =>
-                            setAdminForm((prev) => ({
-                              ...prev,
-                              password: e.target.value,
-                            }))
-                          }
-                          placeholder="Enter your password"
-                          disabled={isLoading}
-                          className="pr-10"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          tabIndex={-1}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="size-4" />
-                          ) : (
-                            <Eye className="size-4" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <Button
-                      type="submit"
-                      disabled={isLoading}
-                      className="h-10 w-full"
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 size-4 animate-spin" />
-                          Signing in...
-                        </>
-                      ) : (
-                        <>
-                          <Mail className="mr-2 size-4" />
-                          Sign In
-                        </>
-                      )}
-                    </Button>
-                  </form>
-                </TabsContent>
               </Tabs>
             </CardContent>
           </Card>

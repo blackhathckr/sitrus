@@ -25,7 +25,7 @@ import { getToken } from 'next-auth/jwt';
 // =============================================================================
 
 /** Routes that are accessible without authentication. */
-const PUBLIC_ROUTES = ['/', '/login', '/register'];
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/admin-login'];
 
 /**
  * Known route prefixes that are NOT dynamic creator slugs.
@@ -34,6 +34,7 @@ const PUBLIC_ROUTES = ['/', '/login', '/register'];
  */
 const KNOWN_ROUTE_PREFIXES = [
   'admin',
+  'admin-login',
   'dashboard',
   'login',
   'register',
@@ -102,7 +103,7 @@ export async function middleware(request: NextRequest) {
   // ---------------------------------------------------------------------------
   if (isPublicRoute || isDynamicSlugRoute) {
     // If authenticated user visits /login, redirect to their home
-    if (token && (pathname === '/login' || pathname === '/register')) {
+    if (token && (pathname === '/login' || pathname === '/register' || pathname === '/admin-login')) {
       if (userRole === 'ADMIN') {
         return NextResponse.redirect(new URL('/admin', request.url));
       }

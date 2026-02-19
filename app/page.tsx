@@ -60,11 +60,11 @@ const processSteps = [
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white">
       {/* ================================================================== */}
       {/* Navbar                                                             */}
       {/* ================================================================== */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 lg:px-8">
           {/* Logo */}
           <Link href="/" className="flex shrink-0 items-center gap-2.5">
@@ -128,8 +128,6 @@ export default function LandingPage() {
         {/* Hero Section                                                     */}
         {/* ================================================================ */}
         <section className="relative overflow-hidden">
-          {/* Decorative orange blob — top right */}
-          <div className="absolute -right-32 -top-32 size-96 rounded-full bg-primary/10 blur-3xl" />
 
           <div className="mx-auto max-w-7xl px-4 py-16 lg:px-8 lg:py-24">
             <div className="grid items-center gap-8 lg:grid-cols-2">
@@ -274,7 +272,7 @@ export default function LandingPage() {
         {/* CTA Banner                                                       */}
         {/* ================================================================ */}
         <section className="mx-4 my-16 lg:mx-8">
-          <div className="mx-auto max-w-7xl overflow-hidden rounded-2xl bg-gradient-to-r from-primary to-[#FF4500] px-8 py-10 text-center text-primary-foreground lg:py-14">
+          <div className="mx-auto max-w-7xl overflow-hidden rounded-2xl bg-white px-8 py-10 text-center text-foreground lg:py-14">
             <p className="text-2xl font-bold sm:text-3xl lg:text-4xl">
               Monetise your{' '}
               <span className="underline decoration-2 underline-offset-4">Content</span>.
@@ -284,7 +282,6 @@ export default function LandingPage() {
             <div className="mt-8">
               <Button
                 size="lg"
-                variant="secondary"
                 asChild
                 className="gap-2 rounded-md font-semibold"
               >
