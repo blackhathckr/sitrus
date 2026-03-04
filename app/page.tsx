@@ -16,7 +16,7 @@ export default function LandingPage() {
         <SitStepsSection />
       </main>
       <LandingFooter />
-      {/* Full-page grid overlay — very subtle, looks like background texture */}
+      {/* Full-page grid overlay */}
       <div
         className="pointer-events-none fixed inset-0 z-[9999]"
         style={{

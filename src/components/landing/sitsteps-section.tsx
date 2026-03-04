@@ -63,7 +63,7 @@ export function SitStepsSection() {
       <div className="relative mx-auto max-w-5xl px-6 lg:px-10">
         {/* Title — right aligned */}
         <h2
-          className="mb-16 text-right text-3xl font-bold italic tracking-tight sm:text-4xl"
+          className="mb-16 text-right text-3xl font-bold italic tracking-tight sm:text-4xl overflow-visible pr-1"
           style={{
             background: 'linear-gradient(90deg, #000000 0%, #FE4819 100%)',
             WebkitBackgroundClip: 'text',
@@ -85,7 +85,7 @@ export function SitStepsSection() {
                 className={`flex flex-col ${isLeft ? 'items-start' : 'items-end'}`}
               >
                 {/* Icon — pushed far to the edge */}
-                <div className={`${isLeft ? '-ml-2 lg:-ml-6' : '-mr-2 lg:-mr-6'}`}>
+                <div className={`relative z-[10000] ${isLeft ? '-ml-2 lg:-ml-6' : '-mr-2 lg:-mr-6'}`}>
                   <Image
                     src={step.image}
                     alt={`Step ${i + 1}`}
