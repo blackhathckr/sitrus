@@ -138,7 +138,7 @@ async function AdminKPIs() {
         }}
       />
       <KPICard
-        title="Revenue"
+        title="GVM"
         value={`\u20B9${revenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         subtitle="Confirmed + Paid earnings"
         trend={{
