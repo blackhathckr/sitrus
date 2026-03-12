@@ -1,11 +1,11 @@
 import Image from 'next/image';
 
 const brands = [
-  { name: 'Myntra', commission: '8%', logo: '/myntra.png' },
-  { name: 'Ajio', commission: '8%', logo: '/ajio.png' },
-  { name: 'Flipkart', commission: '8%', logo: '/flipkart.png' },
-  { name: 'Amazon', commission: '8%', logo: '/amazong.png' },
-  { name: 'Nykaa', commission: '8%', logo: '/nykaa.png' },
+  { name: 'Myntra', commission: '7%', logo: '/myntra.png' },
+  { name: 'Ajio', commission: '5%', logo: '/ajio.png' },
+  { name: 'Flipkart', commission: '6%', logo: '/flipkart.png' },
+  { name: 'Amazon', commission: '4%', logo: '/amazong.png' },
+  { name: 'Nykaa', commission: '9%', logo: '/nykaa.png' },
 ];
 
 export function BrandsSection() {
