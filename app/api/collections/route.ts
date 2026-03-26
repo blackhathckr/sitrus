@@ -124,6 +124,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = createCollectionSchema.parse(body);
 
+    // Enforce max 10 collections per creator
+    const collectionCount = await prisma.collection.count({
+      where: { creatorId: session.user.id },
+    });
+    if (collectionCount >= 10) {
+      return NextResponse.json(
+        { error: 'You can have a maximum of 10 collections' },
+        { status: 400 }
+      );
+    }
+
     // Check slug uniqueness within creator's collections
     const existingCollection = await prisma.collection.findUnique({
       where: {
@@ -166,8 +177,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Audit log
-    await prisma.auditLog.create({
+    // Audit log (non-blocking)
+    prisma.auditLog.create({
       data: {
         userId: session.user.id,
         action: 'CREATE',
@@ -178,7 +189,7 @@ export async function POST(request: NextRequest) {
           slug: collection.slug,
         },
       },
-    });
+    }).catch((err) => console.error('Audit log error:', err));
 
     return NextResponse.json({ data: collection }, { status: 201 });
   } catch (error) {

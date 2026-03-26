@@ -168,10 +168,10 @@ export const updateProfileSchema = z.object({
     .string()
     .max(TAGLINE_MAX_LENGTH, `Tagline must be at most ${TAGLINE_MAX_LENGTH} characters`)
     .optional(),
-  /** URL for the user's avatar image */
-  avatarUrl: z.string().url('Invalid avatar URL').optional(),
-  /** URL for the user's banner image */
-  bannerUrl: z.string().url('Invalid banner URL').optional(),
+  /** URL for the user's avatar image (null or empty string to clear) */
+  avatarUrl: z.string().url('Invalid avatar URL').optional().or(z.literal('').transform(() => null)).or(z.null()),
+  /** URL for the user's banner image (null or empty string to clear) */
+  bannerUrl: z.string().url('Invalid banner URL').optional().or(z.literal('').transform(() => null)).or(z.null()),
   /** YouTube channel or video URL */
   youtubeUrl: z.string().url('Invalid YouTube URL').optional(),
   /** Twitter/X profile URL */

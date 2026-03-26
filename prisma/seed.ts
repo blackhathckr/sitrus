@@ -14,7 +14,7 @@
  * @module prisma/seed
  */
 
-import { PrismaClient, Marketplace, EarningStatus, PayoutStatus } from '@prisma/client';
+import { PrismaClient, Marketplace, EarningStatus, PayoutStatus, Brand } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 
@@ -248,12 +248,39 @@ async function main() {
   }
 
   // -------------------------------------------------------------------------
-  // 3. Products
+  // 3. Brands (master data)
+  // -------------------------------------------------------------------------
+  console.log('\n🏷️  Creating brands...');
+  const uniqueBrandNames = [...new Set(PRODUCTS_DATA.map((p) => p.brand))];
+  const brandMap = new Map<string, Brand>();
+
+  for (const brandName of uniqueBrandNames) {
+    const slug = brandName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    const brand = await prisma.brand.upsert({
+      where: { slug },
+      update: {},
+      create: {
+        name: brandName,
+        slug,
+        isActive: true,
+      },
+    });
+    brandMap.set(brandName, brand);
+  }
+  console.log(`  ✓ Created ${brandMap.size} brands`);
+
+  // -------------------------------------------------------------------------
+  // 4. Products
   // -------------------------------------------------------------------------
   console.log('\n📦 Creating products...');
   const products = [];
 
   for (const p of PRODUCTS_DATA) {
+    const brandRecord = brandMap.get(p.brand);
     const product = await prisma.product.create({
       data: {
         title: p.title,
@@ -264,6 +291,7 @@ async function main() {
         marketplace: p.marketplace as Marketplace,
         category: p.category,
         brand: p.brand,
+        brandId: brandRecord?.id ?? null,
         rating: parseFloat((3.5 + Math.random() * 1.5).toFixed(1)),
         commissionRate: p.commissionRate,
         isActive: true,
@@ -274,7 +302,7 @@ async function main() {
   console.log(`  ✓ Created ${products.length} products`);
 
   // -------------------------------------------------------------------------
-  // 4. Links (SitLinks) — 20 links distributed across creators
+  // 5. Links (SitLinks) — 20 links distributed across creators
   // -------------------------------------------------------------------------
   console.log('\n🔗 Creating SitLinks...');
   const links = [];
@@ -303,7 +331,7 @@ async function main() {
   console.log(`  ✓ Created ${links.length} SitLinks`);
 
   // -------------------------------------------------------------------------
-  // 5. Clicks — 200+ over last 30 days
+  // 6. Clicks — 200+ over last 30 days
   // -------------------------------------------------------------------------
   console.log('\n🖱️  Creating click data...');
   let totalClicks = 0;
@@ -340,7 +368,7 @@ async function main() {
   console.log(`  ✓ Created ${totalClicks} clicks across ${links.length} links`);
 
   // -------------------------------------------------------------------------
-  // 6. Earnings — 30 entries with varied statuses
+  // 7. Earnings — 30 entries with varied statuses
   // -------------------------------------------------------------------------
   console.log('\n💰 Creating earnings...');
   const earningStatuses: EarningStatus[] = ['PENDING', 'CONFIRMED', 'PAID', 'CANCELLED'];
@@ -371,7 +399,7 @@ async function main() {
   console.log(`  ✓ Created ${earningCount} earnings`);
 
   // -------------------------------------------------------------------------
-  // 7. Payouts — 5 with varied statuses
+  // 8. Payouts — 5 with varied statuses
   // -------------------------------------------------------------------------
   console.log('\n💳 Creating payouts...');
   const payoutStatuses: PayoutStatus[] = [
@@ -404,7 +432,7 @@ async function main() {
   }
 
   // -------------------------------------------------------------------------
-  // 8. Collections — 3 per creator (15 total)
+  // 9. Collections — 3 per creator (15 total)
   // -------------------------------------------------------------------------
   console.log('\n📂 Creating collections...');
   let collectionCount = 0;
@@ -449,7 +477,7 @@ async function main() {
   console.log(`  ✓ Created ${collectionCount} collections with products`);
 
   // -------------------------------------------------------------------------
-  // 9. Audit Logs
+  // 10. Audit Logs
   // -------------------------------------------------------------------------
   console.log('\n📋 Creating audit logs...');
   await prisma.auditLog.create({
@@ -472,6 +500,7 @@ async function main() {
   console.log(`
   Admin:     ${ADMIN_DATA.email} / ${ADMIN_DATA.password}
   Creators:  ${creators.length} accounts (password: Creator123!)
+  Brands:    ${brandMap.size}
   Products:  ${products.length}
   SitLinks:  ${links.length}
   Clicks:    ${totalClicks}

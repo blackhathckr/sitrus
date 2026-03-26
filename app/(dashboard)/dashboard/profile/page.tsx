@@ -3,14 +3,14 @@
  *
  * Allows the authenticated creator to view and edit their profile
  * details including personal information, social links, avatar, and
- * banner. Persists changes via PUT /api/creators/me.
+ * banner. Avatar and banner are uploaded to Azure Blob Storage.
  *
  * @module dashboard/profile
  */
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import {
   Save,
@@ -18,7 +18,9 @@ import {
   Loader2,
   Instagram,
   Youtube,
-  Twitter,
+  Upload,
+  Trash2,
+  ImageIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,7 +40,6 @@ import { PageLottie } from '@/components/ui/page-lottie';
 // Types
 // ---------------------------------------------------------------------------
 
-/** Full profile response from GET /api/creators/me. */
 interface CreatorProfile {
   id: string;
   email: string;
@@ -54,19 +55,12 @@ interface CreatorProfile {
     bannerUrl: string | null;
     tagline: string | null;
     youtubeUrl: string | null;
-    twitterUrl: string | null;
     isApproved: boolean;
     isPublic: boolean;
   };
   _count: { links: number; collections: number; earnings: number };
 }
 
-/**
- * Mutable subset of the profile used to drive the form.
- *
- * Keeps keys identical to what the PUT endpoint accepts so the
- * payload can be sent directly.
- */
 interface ProfileFormData {
   name: string;
   displayName: string;
@@ -75,7 +69,6 @@ interface ProfileFormData {
   slug: string;
   instagramHandle: string;
   youtubeUrl: string;
-  twitterUrl: string;
   avatarUrl: string;
   bannerUrl: string;
 }
@@ -84,10 +77,6 @@ interface ProfileFormData {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Builds the initial form state from the API response, converting
- * nullable fields to empty strings for controlled inputs.
- */
 function profileToFormData(profile: CreatorProfile): ProfileFormData {
   const cp = profile.creatorProfile;
   return {
@@ -98,7 +87,6 @@ function profileToFormData(profile: CreatorProfile): ProfileFormData {
     slug: cp.slug ?? '',
     instagramHandle: cp.instagramHandle ?? '',
     youtubeUrl: cp.youtubeUrl ?? '',
-    twitterUrl: cp.twitterUrl ?? '',
     avatarUrl: cp.avatarUrl ?? '',
     bannerUrl: cp.bannerUrl ?? '',
   };
@@ -109,7 +97,6 @@ function profileToFormData(profile: CreatorProfile): ProfileFormData {
 // ---------------------------------------------------------------------------
 
 export default function ProfilePage() {
-  // ---- State ---------------------------------------------------------------
   const [profile, setProfile] = useState<CreatorProfile | null>(null);
   const [form, setForm] = useState<ProfileFormData>({
     name: '',
@@ -119,12 +106,16 @@ export default function ProfilePage() {
     slug: '',
     instagramHandle: '',
     youtubeUrl: '',
-    twitterUrl: '',
     avatarUrl: '',
     bannerUrl: '',
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
 
   // ---- Data fetching -------------------------------------------------------
 
@@ -150,25 +141,60 @@ export default function ProfilePage() {
 
   // ---- Handlers ------------------------------------------------------------
 
-  /**
-   * Generic change handler that updates a single form field.
-   */
-  function handleChange(
-    field: keyof ProfileFormData,
-    value: string,
-  ) {
+  function handleChange(field: keyof ProfileFormData, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
   /**
-   * Persists the form data to the server via PUT /api/creators/me.
-   * Only sends fields that the API expects. Shows a success or error
-   * toast depending on the outcome.
+   * Uploads a file to the server and updates the form field.
    */
+  async function handleFileUpload(
+    file: File,
+    folder: 'avatars' | 'banners',
+    field: 'avatarUrl' | 'bannerUrl'
+  ) {
+    const setUploading = folder === 'avatars' ? setIsUploadingAvatar : setIsUploadingBanner;
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', folder);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || 'Upload failed');
+      }
+
+      const json = await res.json();
+      setForm((prev) => ({ ...prev, [field]: json.url }));
+      toast.success(`${folder === 'avatars' ? 'Avatar' : 'Banner'} uploaded`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  /**
+   * Removes the avatar or banner (sets URL to empty so backend clears it and deletes blob).
+   */
+  function handleRemoveImage(field: 'avatarUrl' | 'bannerUrl') {
+    setForm((prev) => ({ ...prev, [field]: '' }));
+    toast.info(
+      `${field === 'avatarUrl' ? 'Avatar' : 'Banner'} will be removed when you save`
+    );
+  }
+
   async function handleSave() {
     setIsSaving(true);
     try {
-      const payload: Record<string, string | undefined> = {
+      const payload: Record<string, string | null | undefined> = {
         name: form.name || undefined,
         displayName: form.displayName || undefined,
         bio: form.bio || undefined,
@@ -176,12 +202,23 @@ export default function ProfilePage() {
         slug: form.slug || undefined,
         instagramHandle: form.instagramHandle || undefined,
         youtubeUrl: form.youtubeUrl || undefined,
-        twitterUrl: form.twitterUrl || undefined,
-        avatarUrl: form.avatarUrl || undefined,
-        bannerUrl: form.bannerUrl || undefined,
       };
 
-      // Remove undefined keys so the API does not overwrite with null
+      // Avatar: send null to clear, URL to set, omit to leave unchanged
+      if (form.avatarUrl === '' && profile?.creatorProfile?.avatarUrl) {
+        payload.avatarUrl = null; // Clear it
+      } else if (form.avatarUrl && form.avatarUrl !== profile?.creatorProfile?.avatarUrl) {
+        payload.avatarUrl = form.avatarUrl; // Update
+      }
+
+      // Banner: same logic
+      if (form.bannerUrl === '' && profile?.creatorProfile?.bannerUrl) {
+        payload.bannerUrl = null;
+      } else if (form.bannerUrl && form.bannerUrl !== profile?.creatorProfile?.bannerUrl) {
+        payload.bannerUrl = form.bannerUrl;
+      }
+
+      // Remove undefined keys
       const cleanPayload = Object.fromEntries(
         Object.entries(payload).filter(([, v]) => v !== undefined),
       );
@@ -203,6 +240,10 @@ export default function ProfilePage() {
           ? { ...prev, ...json.data, creatorProfile: json.data.creatorProfile }
           : prev,
       );
+      // Sync form with latest saved data
+      if (json.data) {
+        setForm(profileToFormData({ ...profile!, ...json.data, creatorProfile: json.data.creatorProfile }));
+      }
       toast.success('Profile updated successfully');
     } catch (err) {
       console.error('[Profile] handleSave error:', err);
@@ -219,35 +260,24 @@ export default function ProfilePage() {
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center p-6">
-        <PageLottie
-          name="profile"
-          description="Loading your profile..."
-        />
+        <PageLottie name="profile" description="Loading your profile..." />
       </div>
     );
   }
 
   // ---- Render --------------------------------------------------------------
 
-  const cp = profile?.creatorProfile;
-
   return (
     <div className="flex flex-1 flex-col gap-6 p-4 lg:p-6">
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Profile Settings
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight">Profile Settings</h1>
           <p className="text-muted-foreground">
             Manage your creator profile and social links
           </p>
         </div>
-        <Button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="gap-1.5"
-        >
+        <Button onClick={handleSave} disabled={isSaving} className="gap-1.5">
           {isSaving ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
@@ -259,7 +289,7 @@ export default function ProfilePage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* ============================================================== */}
-        {/* Left column: Avatar + Banner preview                           */}
+        {/* Left column: Avatar + Banner                                   */}
         {/* ============================================================== */}
         <div className="space-y-6 lg:col-span-1">
           {/* Avatar card */}
@@ -285,15 +315,47 @@ export default function ProfilePage() {
                   </div>
                 )}
               </div>
-              <div className="w-full space-y-2">
-                <Label htmlFor="avatar-url">Avatar URL</Label>
-                <Input
-                  id="avatar-url"
-                  placeholder="https://example.com/avatar.jpg"
-                  value={form.avatarUrl}
-                  onChange={(e) => handleChange('avatarUrl', e.target.value)}
-                />
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileUpload(file, 'avatars', 'avatarUrl');
+                  e.target.value = '';
+                }}
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={isUploadingAvatar}
+                  onClick={() => avatarInputRef.current?.click()}
+                >
+                  {isUploadingAvatar ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="size-3.5" />
+                  )}
+                  {form.avatarUrl ? 'Replace' : 'Upload'}
+                </Button>
+                {form.avatarUrl && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    onClick={() => handleRemoveImage('avatarUrl')}
+                  >
+                    <Trash2 className="size-3.5" />
+                    Remove
+                  </Button>
+                )}
               </div>
+              <p className="text-xs text-muted-foreground text-center">
+                JPEG, PNG, or WebP. Max 5MB.
+              </p>
             </CardContent>
           </Card>
 
@@ -316,19 +378,52 @@ export default function ProfilePage() {
                   />
                 ) : (
                   <div className="flex size-full items-center justify-center text-sm text-muted-foreground">
+                    <ImageIcon className="mr-2 size-4" />
                     No banner set
                   </div>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="banner-url">Banner URL</Label>
-                <Input
-                  id="banner-url"
-                  placeholder="https://example.com/banner.jpg"
-                  value={form.bannerUrl}
-                  onChange={(e) => handleChange('bannerUrl', e.target.value)}
-                />
+              <input
+                ref={bannerInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileUpload(file, 'banners', 'bannerUrl');
+                  e.target.value = '';
+                }}
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={isUploadingBanner}
+                  onClick={() => bannerInputRef.current?.click()}
+                >
+                  {isUploadingBanner ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="size-3.5" />
+                  )}
+                  {form.bannerUrl ? 'Replace' : 'Upload'}
+                </Button>
+                {form.bannerUrl && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    onClick={() => handleRemoveImage('bannerUrl')}
+                  >
+                    <Trash2 className="size-3.5" />
+                    Remove
+                  </Button>
+                )}
               </div>
+              <p className="text-xs text-muted-foreground">
+                JPEG, PNG, or WebP. Max 10MB. Recommended 1200x400px.
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -346,7 +441,6 @@ export default function ProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Name */}
               <div className="space-y-2">
                 <Label htmlFor="name">Name</Label>
                 <Input
@@ -356,8 +450,6 @@ export default function ProfilePage() {
                   onChange={(e) => handleChange('name', e.target.value)}
                 />
               </div>
-
-              {/* Display Name */}
               <div className="space-y-2">
                 <Label htmlFor="display-name">Display Name</Label>
                 <Input
@@ -371,8 +463,6 @@ export default function ProfilePage() {
                   account name if empty.
                 </p>
               </div>
-
-              {/* Slug */}
               <div className="space-y-2">
                 <Label htmlFor="slug">Slug</Label>
                 <div className="flex items-center gap-2">
@@ -395,7 +485,6 @@ export default function ProfilePage() {
 
               <Separator />
 
-              {/* Tagline */}
               <div className="space-y-2">
                 <Label htmlFor="tagline">Tagline</Label>
                 <Input
@@ -405,8 +494,6 @@ export default function ProfilePage() {
                   onChange={(e) => handleChange('tagline', e.target.value)}
                 />
               </div>
-
-              {/* Bio */}
               <div className="space-y-2">
                 <Label htmlFor="bio">Bio</Label>
                 <Textarea
@@ -417,8 +504,6 @@ export default function ProfilePage() {
                   rows={4}
                 />
               </div>
-
-              {/* Instagram Handle */}
               <div className="space-y-2">
                 <Label htmlFor="instagram">Instagram Handle</Label>
                 <div className="flex items-center gap-2">
@@ -448,7 +533,6 @@ export default function ProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* YouTube */}
               <div className="space-y-2">
                 <Label htmlFor="youtube">YouTube URL</Label>
                 <div className="flex items-center gap-2">
@@ -461,30 +545,11 @@ export default function ProfilePage() {
                   />
                 </div>
               </div>
-
-              {/* Twitter / X */}
-              <div className="space-y-2">
-                <Label htmlFor="twitter">Twitter URL</Label>
-                <div className="flex items-center gap-2">
-                  <Twitter className="size-4 shrink-0 text-muted-foreground" />
-                  <Input
-                    id="twitter"
-                    placeholder="https://twitter.com/yourhandle"
-                    value={form.twitterUrl}
-                    onChange={(e) => handleChange('twitterUrl', e.target.value)}
-                  />
-                </div>
-              </div>
             </CardContent>
           </Card>
 
-          {/* Save button (bottom, for convenience on long forms) */}
           <div className="flex justify-end">
-            <Button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="gap-1.5"
-            >
+            <Button onClick={handleSave} disabled={isSaving} className="gap-1.5">
               {isSaving ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (

@@ -164,19 +164,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Check if product is already in this collection
-    const existingEntry = await prisma.collectionProduct.findUnique({
-      where: {
-        collectionId_productId: {
-          collectionId: id,
-          productId,
-        },
-      },
+    // Check if product is already in ANY collection (product can only be in 1 collection)
+    const existingEntry = await prisma.collectionProduct.findFirst({
+      where: { productId },
+      include: { collection: { select: { name: true } } },
     });
 
     if (existingEntry) {
+      if (existingEntry.collectionId === id) {
+        return NextResponse.json(
+          { error: 'Product is already in this collection' },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
-        { error: 'Product is already in this collection' },
+        { error: `Product is already in collection "${existingEntry.collection.name}"` },
         { status: 409 }
       );
     }
@@ -200,8 +202,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Audit log
-    await prisma.auditLog.create({
+    // Audit log (non-blocking)
+    prisma.auditLog.create({
       data: {
         userId: session.user.id,
         action: 'CREATE',
@@ -213,7 +215,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           productTitle: product.title,
         },
       },
-    });
+    }).catch((err) => console.error('Audit log error:', err));
 
     return NextResponse.json({ data: collectionProduct }, { status: 201 });
   } catch (error) {
@@ -322,8 +324,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       where: { id: collectionProduct.id },
     });
 
-    // Audit log
-    await prisma.auditLog.create({
+    // Audit log (non-blocking)
+    prisma.auditLog.create({
       data: {
         userId: session.user.id,
         action: 'DELETE',
@@ -334,7 +336,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
           productId,
         },
       },
-    });
+    }).catch((err) => console.error('Audit log error:', err));
 
     return NextResponse.json({
       message: 'Product removed from collection successfully',

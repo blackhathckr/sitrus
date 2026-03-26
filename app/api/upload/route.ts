@@ -1,8 +1,8 @@
 /**
  * File Upload API
  *
- * Handles file uploads to Cloudflare R2 storage.
- * Supports avatars and banners with type/size validation.
+ * Handles file uploads to Azure Blob Storage.
+ * Supports avatars, banners, and brand logos with type/size validation.
  *
  * @module api/upload
  */
@@ -11,13 +11,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth/auth-options';
 import {
   uploadFile,
+  deleteFile,
   generateUniqueFileName,
   validateFileType,
   validateFileSize,
+  isAzureBlobUrl,
+  getMaxSizeForFolder,
   ALLOWED_IMAGE_TYPES,
-  MAX_AVATAR_SIZE_MB,
-  MAX_BANNER_SIZE_MB,
-} from '@/lib/storage/r2';
+  VALID_FOLDERS,
+  type UploadFolder,
+} from '@/lib/storage/azure-blob';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,15 +28,15 @@ export const dynamic = 'force-dynamic';
 /**
  * POST /api/upload
  *
- * Uploads a file to Cloudflare R2 storage. Requires authentication.
- * Accepts multipart form data with `file` and optional `folder` fields.
+ * Uploads a file to Azure Blob Storage. Requires authentication.
+ * Accepts multipart form data with `file`, `folder`, and optional `subfolder` fields.
  *
- * Supported folders: 'avatars' (max 5MB), 'banners' (max 10MB).
+ * Supported folders: 'avatars', 'banners', 'brands'.
+ * For avatars/banners, subfolder defaults to the user's ID.
  */
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
-
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -41,21 +44,21 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const folder = (formData.get('folder') as string) || 'avatars';
+    const subfolder = (formData.get('subfolder') as string) || undefined;
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
     // Validate folder
-    const validFolders = ['avatars', 'banners'];
-    if (!validFolders.includes(folder)) {
+    if (!VALID_FOLDERS.includes(folder as UploadFolder)) {
       return NextResponse.json(
-        { error: `Invalid folder. Must be one of: ${validFolders.join(', ')}` },
+        { error: `Invalid folder. Must be one of: ${VALID_FOLDERS.join(', ')}` },
         { status: 400 }
       );
     }
 
-    // Validate file type (images only)
+    // Validate file type
     if (!validateFileType(file.type, [...ALLOWED_IMAGE_TYPES])) {
       return NextResponse.json(
         { error: `File type ${file.type} is not allowed. Accepted: JPEG, PNG, WebP` },
@@ -63,8 +66,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file size based on folder
-    const maxSize = folder === 'banners' ? MAX_BANNER_SIZE_MB : MAX_AVATAR_SIZE_MB;
+    // Validate file size
+    const maxSize = getMaxSizeForFolder(folder as UploadFolder);
     if (!validateFileSize(file.size, maxSize)) {
       return NextResponse.json(
         { error: `File size exceeds ${maxSize}MB limit` },
@@ -79,8 +82,20 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Upload to R2
-    const fileUrl = await uploadFile(buffer, uniqueFileName, file.type, folder);
+    // Determine subfolder: for avatars/banners use userId, otherwise use provided or none
+    const effectiveSubfolder =
+      (folder === 'avatars' || folder === 'banners')
+        ? (subfolder || session.user.id)
+        : subfolder;
+
+    // Upload to Azure Blob Storage
+    const fileUrl = await uploadFile(
+      buffer,
+      uniqueFileName,
+      file.type,
+      folder as UploadFolder,
+      effectiveSubfolder
+    );
 
     return NextResponse.json({
       success: true,
@@ -94,6 +109,49 @@ export async function POST(request: NextRequest) {
     console.error('[API] POST /api/upload error:', error);
     return NextResponse.json(
       { error: 'Failed to upload file' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/upload
+ *
+ * Deletes a file from Azure Blob Storage by URL. Requires authentication.
+ * Only deletes files that belong to our Azure storage.
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { url } = await request.json();
+    if (!url || typeof url !== 'string') {
+      return NextResponse.json({ error: 'URL is required' }, { status: 400 });
+    }
+
+    if (!isAzureBlobUrl(url)) {
+      return NextResponse.json(
+        { error: 'URL is not from our storage' },
+        { status: 400 }
+      );
+    }
+
+    const deleted = await deleteFile(url);
+    if (!deleted) {
+      return NextResponse.json(
+        { error: 'Failed to delete file' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('[API] DELETE /api/upload error:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete file' },
       { status: 500 }
     );
   }

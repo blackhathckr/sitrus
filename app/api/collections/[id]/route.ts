@@ -181,8 +181,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Audit log
-    await prisma.auditLog.create({
+    // Audit log (non-blocking)
+    prisma.auditLog.create({
       data: {
         userId: session.user.id,
         action: 'UPDATE',
@@ -192,7 +192,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           updatedFields: Object.keys(validatedData),
         },
       },
-    });
+    }).catch((err) => console.error('Audit log error:', err));
 
     return NextResponse.json({ data: updatedCollection });
   } catch (error) {
@@ -283,8 +283,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       where: { id },
     });
 
-    // Audit log
-    await prisma.auditLog.create({
+    // Audit log (non-blocking)
+    prisma.auditLog.create({
       data: {
         userId: session.user.id,
         action: 'DELETE',
@@ -297,7 +297,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
           },
         },
       },
-    });
+    }).catch((err) => console.error('Audit log error:', err));
 
     return NextResponse.json({
       message: 'Collection deleted successfully',

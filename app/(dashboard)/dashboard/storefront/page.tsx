@@ -13,7 +13,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Copy, Plus, Globe, Lock, ExternalLink, Loader2 } from 'lucide-react';
+import { Copy, Plus, Globe, Lock, ExternalLink, Loader2, Trash2, Package, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -57,7 +57,6 @@ interface CreatorProfile {
     bannerUrl: string | null;
     tagline: string | null;
     youtubeUrl: string | null;
-    twitterUrl: string | null;
     isApproved: boolean;
     isPublic: boolean;
   };
@@ -77,12 +76,30 @@ interface Collection {
   _count: { products: number };
 }
 
+/** Product shape from /api/products */
+interface Product {
+  id: string;
+  title: string;
+  imageUrl: string | null;
+  price: number;
+  marketplace: string;
+}
+
+/** Product inside a collection from /api/collections/[id] */
+interface CollectionProduct {
+  id: string;
+  productId: string;
+  product: Product;
+}
+
 /** Payload for the create-collection form */
 interface NewCollectionForm {
   name: string;
   slug: string;
   isPublic: boolean;
 }
+
+const MAX_COLLECTIONS = 10;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -124,6 +141,14 @@ export default function StorefrontPage() {
     slug: '',
     isPublic: true,
   });
+
+  // Manage products in a collection
+  const [manageCollectionId, setManageCollectionId] = useState<string | null>(null);
+  const [manageDialogOpen, setManageDialogOpen] = useState(false);
+  const [collectionProducts, setCollectionProducts] = useState<CollectionProduct[]>([]);
+  const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
   // ---- Data fetching -------------------------------------------------------
 
@@ -199,6 +224,10 @@ export default function StorefrontPage() {
    * Refreshes the collection list and resets the dialog on success.
    */
   const handleCreateCollection = useCallback(async () => {
+    if (collections.length >= MAX_COLLECTIONS) {
+      toast.error(`You can have a maximum of ${MAX_COLLECTIONS} collections`);
+      return;
+    }
     if (!newCollection.name.trim()) {
       toast.error('Collection name is required');
       return;
@@ -237,7 +266,107 @@ export default function StorefrontPage() {
     } finally {
       setIsCreating(false);
     }
-  }, [newCollection, fetchCollections]);
+  }, [newCollection, collections.length, fetchCollections]);
+
+  /**
+   * Deletes a collection after confirmation.
+   */
+  const handleDeleteCollection = useCallback(async (collectionId: string) => {
+    if (!confirm('Delete this collection? Products will be unlinked but not deleted.')) return;
+
+    setIsDeleting(collectionId);
+    try {
+      const res = await fetch(`/api/collections/${collectionId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete');
+      toast.success('Collection deleted');
+      await fetchCollections();
+    } catch {
+      toast.error('Failed to delete collection');
+    } finally {
+      setIsDeleting(null);
+    }
+  }, [fetchCollections]);
+
+  /**
+   * Opens the manage-products dialog for a collection.
+   * Fetches collection products and all available products.
+   */
+  const handleManageProducts = useCallback(async (collectionId: string) => {
+    setManageCollectionId(collectionId);
+    setManageDialogOpen(true);
+    setIsLoadingProducts(true);
+
+    try {
+      const [colRes, prodRes] = await Promise.all([
+        fetch(`/api/collections/${collectionId}`),
+        fetch('/api/products?limit=100&status=ACTIVE'),
+      ]);
+
+      if (colRes.ok) {
+        const colJson = await colRes.json();
+        setCollectionProducts(colJson.data?.products ?? []);
+      }
+      if (prodRes.ok) {
+        const prodJson = await prodRes.json();
+        setAvailableProducts(prodJson.data ?? []);
+      }
+    } catch {
+      toast.error('Failed to load products');
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  }, []);
+
+  /**
+   * Adds a product to the currently managed collection.
+   * Enforces: product can only be in 1 collection.
+   */
+  const handleAddProduct = useCallback(async (productId: string) => {
+    if (!manageCollectionId) return;
+
+    try {
+      const res = await fetch(`/api/collections/${manageCollectionId}/products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId }),
+      });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || 'Failed to add product');
+      }
+
+      toast.success('Product added to collection');
+      // Refresh both lists
+      await handleManageProducts(manageCollectionId);
+      await fetchCollections();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add product');
+    }
+  }, [manageCollectionId, handleManageProducts, fetchCollections]);
+
+  /**
+   * Removes a product from the currently managed collection.
+   */
+  const handleRemoveProduct = useCallback(async (productId: string) => {
+    if (!manageCollectionId) return;
+
+    try {
+      const res = await fetch(`/api/collections/${manageCollectionId}/products`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId }),
+      });
+
+      if (!res.ok) throw new Error('Failed to remove');
+
+      toast.success('Product removed from collection');
+      await handleManageProducts(manageCollectionId);
+      await fetchCollections();
+    } catch {
+      toast.error('Failed to remove product');
+    }
+  }, [manageCollectionId, handleManageProducts, fetchCollections]);
 
   // ---- Loading state -------------------------------------------------------
 
@@ -296,7 +425,7 @@ export default function StorefrontPage() {
                 aria-label="Open storefront in new tab"
               >
                 <a
-                  href={`https://${STOREFRONT_BASE_URL}/${cp?.slug ?? ''}`}
+                  href={`${STOREFRONT_BASE_URL}/${cp?.slug ?? ''}`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -408,14 +537,18 @@ export default function StorefrontPage() {
               Collections
             </h2>
             <p className="text-sm text-muted-foreground">
-              Organize your products into themed collections
+              Organize your products into themed collections ({collections.length}/{MAX_COLLECTIONS})
             </p>
           </div>
 
           {/* Create collection dialog */}
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="gap-1.5">
+              <Button
+                size="sm"
+                className="gap-1.5"
+                disabled={collections.length >= MAX_COLLECTIONS}
+              >
                 <Plus className="size-4" />
                 Create Collection
               </Button>
@@ -550,7 +683,7 @@ export default function StorefrontPage() {
                     /{collection.slug}
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
                     <span>
                       {collection._count.products}{' '}
@@ -560,12 +693,163 @@ export default function StorefrontPage() {
                     </span>
                     <span className="text-xs">Order: {collection.order}</span>
                   </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 gap-1.5"
+                      onClick={() => handleManageProducts(collection.id)}
+                    >
+                      <Package className="size-3.5" />
+                      Manage Products
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="size-8 shrink-0 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                      onClick={() => handleDeleteCollection(collection.id)}
+                      disabled={isDeleting === collection.id}
+                    >
+                      {isDeleting === collection.id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-3.5" />
+                      )}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
       </div>
+
+      {/* ================================================================== */}
+      {/* Manage Products Dialog                                             */}
+      {/* ================================================================== */}
+      <Dialog open={manageDialogOpen} onOpenChange={(open) => {
+        setManageDialogOpen(open);
+        if (!open) setManageCollectionId(null);
+      }}>
+        <DialogContent className="max-h-[80vh] max-w-2xl overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Manage Products</DialogTitle>
+            <DialogDescription>
+              Add or remove products from this collection. Each product can only belong to one collection.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingProducts ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto space-y-6">
+              {/* Products in this collection */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">
+                  In Collection ({collectionProducts.length})
+                </h3>
+                {collectionProducts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">
+                    No products in this collection yet.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {collectionProducts.map((cp) => (
+                      <div
+                        key={cp.id}
+                        className="flex items-center gap-3 rounded-md border p-2"
+                      >
+                        {cp.product.imageUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={cp.product.imageUrl}
+                            alt={cp.product.title}
+                            className="size-10 shrink-0 rounded object-cover"
+                          />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {cp.product.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {cp.product.marketplace} · ₹{cp.product.price}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 shrink-0 text-destructive hover:bg-destructive/10"
+                          onClick={() => handleRemoveProduct(cp.productId)}
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Available products to add */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Available Products</h3>
+                {(() => {
+                  const productsInCollection = new Set(
+                    collectionProducts.map((cp) => cp.productId)
+                  );
+                  const available = availableProducts.filter(
+                    (p) => !productsInCollection.has(p.id)
+                  );
+                  if (available.length === 0) {
+                    return (
+                      <p className="text-sm text-muted-foreground py-2">
+                        No more products available to add.
+                      </p>
+                    );
+                  }
+                  return (
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {available.map((product) => (
+                        <div
+                          key={product.id}
+                          className="flex items-center gap-3 rounded-md border p-2"
+                        >
+                          {product.imageUrl && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={product.imageUrl}
+                              alt={product.title}
+                              className="size-10 shrink-0 rounded object-cover"
+                            />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">
+                              {product.title}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {product.marketplace} · ₹{product.price}
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0 gap-1"
+                            onClick={() => handleAddProduct(product.id)}
+                          >
+                            <Plus className="size-3.5" />
+                            Add
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

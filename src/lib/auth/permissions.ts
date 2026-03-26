@@ -23,6 +23,7 @@ import { UserRole } from '@prisma/client';
 export type Resource =
   | 'creators'
   | 'products'
+  | 'brands'
   | 'links'
   | 'clicks'
   | 'collections'
@@ -63,6 +64,7 @@ const PERMISSION_MATRIX: Record<
   [UserRole.ADMIN]: {
     creators: ['create', 'read', 'update', 'delete'],
     products: ['create', 'read', 'update', 'delete'],
+    brands: ['create', 'read', 'update', 'delete'],
     links: ['create', 'read', 'update', 'delete'],
     clicks: ['create', 'read', 'update', 'delete'],
     collections: ['create', 'read', 'update', 'delete'],
@@ -76,6 +78,7 @@ const PERMISSION_MATRIX: Record<
   [UserRole.CREATOR]: {
     creators: ['read', 'update'],
     products: ['read'],
+    brands: ['read'],
     links: ['create', 'read', 'update', 'delete'],
     clicks: ['read'],
     collections: ['create', 'read', 'update', 'delete'],

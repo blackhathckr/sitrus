@@ -185,6 +185,9 @@ export default function AdminProductsPage() {
   const [marketplaceFilter, setMarketplaceFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
+  // Brands master data
+  const [brandOptions, setBrandOptions] = useState<{ id: string; name: string }[]>([]);
+
   // Dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -243,6 +246,27 @@ export default function AdminProductsPage() {
   useEffect(() => {
     fetchProducts(page);
   }, [page, fetchProducts]);
+
+  /** Fetch brands for the dropdown. */
+  useEffect(() => {
+    async function loadBrands() {
+      try {
+        const res = await fetch('/api/brands');
+        if (res.ok) {
+          const json = await res.json();
+          setBrandOptions(
+            (json.data ?? []).map((b: { id: string; name: string }) => ({
+              id: b.id,
+              name: b.name,
+            }))
+          );
+        }
+      } catch {
+        // Brands loading is non-critical
+      }
+    }
+    loadBrands();
+  }, []);
 
   /** Reset to page 1 when filters change. */
   useEffect(() => {
@@ -587,12 +611,22 @@ export default function AdminProductsPage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="product-brand">Brand</Label>
-          <Input
-            id="product-brand"
-            placeholder="e.g. Nike"
-            value={form.brand}
-            onChange={(e) => updateForm('brand', e.target.value)}
-          />
+          <Select
+            value={form.brand || 'none'}
+            onValueChange={(val) => updateForm('brand', val === 'none' ? '' : val)}
+          >
+            <SelectTrigger id="product-brand">
+              <SelectValue placeholder="Select brand" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No brand</SelectItem>
+              {brandOptions.map((b) => (
+                <SelectItem key={b.id} value={b.name}>
+                  {b.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label htmlFor="product-commission">Commission Rate (%)</Label>

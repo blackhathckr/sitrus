@@ -15,6 +15,7 @@ import { prisma } from '@/lib/db/prisma';
 import { auth } from '@/lib/auth/auth-options';
 import { hasPermission } from '@/lib/auth/permissions';
 import { updateProfileSchema } from '@/lib/validations/user';
+import { deleteFile, isAzureBlobUrl } from '@/lib/storage/azure-blob';
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
 
@@ -117,10 +118,10 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const validatedData = updateProfileSchema.parse(body);
 
-    // Verify user has a creator profile
+    // Verify user has a creator profile (include current avatar/banner for blob cleanup)
     const existingUser = await prisma.user.findUnique({
       where: { id: session.user.id },
-      include: { creatorProfile: { select: { id: true, slug: true } } },
+      include: { creatorProfile: { select: { id: true, slug: true, avatarUrl: true, bannerUrl: true } } },
     });
 
     if (!existingUser) {
@@ -175,6 +176,25 @@ export async function PUT(request: NextRequest) {
     if (profileFields.twitterUrl !== undefined)
       profileUpdate.twitterUrl = profileFields.twitterUrl;
 
+    // Clean up old Azure blobs if avatar/banner is being changed or cleared
+    const oldProfile = existingUser.creatorProfile;
+    if (profileUpdate.avatarUrl !== undefined && oldProfile?.avatarUrl) {
+      const newUrl = profileUpdate.avatarUrl as string | null;
+      if (newUrl !== oldProfile.avatarUrl && isAzureBlobUrl(oldProfile.avatarUrl)) {
+        deleteFile(oldProfile.avatarUrl).catch((err) =>
+          console.error('[API] Failed to delete old avatar blob:', err)
+        );
+      }
+    }
+    if (profileUpdate.bannerUrl !== undefined && oldProfile?.bannerUrl) {
+      const newUrl = profileUpdate.bannerUrl as string | null;
+      if (newUrl !== oldProfile.bannerUrl && isAzureBlobUrl(oldProfile.bannerUrl)) {
+        deleteFile(oldProfile.bannerUrl).catch((err) =>
+          console.error('[API] Failed to delete old banner blob:', err)
+        );
+      }
+    }
+
     // Atomic transaction: update user and profile together
     const [updatedUser, updatedProfile] = await prisma.$transaction([
       prisma.user.update({
@@ -196,8 +216,8 @@ export async function PUT(request: NextRequest) {
       }),
     ]);
 
-    // Audit log
-    await prisma.auditLog.create({
+    // Audit log (non-blocking)
+    prisma.auditLog.create({
       data: {
         userId: session.user.id,
         action: 'UPDATE',
@@ -207,7 +227,7 @@ export async function PUT(request: NextRequest) {
           updatedFields: Object.keys(validatedData),
         },
       },
-    });
+    }).catch((err) => console.error('Audit log error:', err));
 
     return NextResponse.json({
       data: {

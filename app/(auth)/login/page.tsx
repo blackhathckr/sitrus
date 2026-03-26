@@ -2,9 +2,9 @@
  * Login Page
  *
  * Sitrus authentication page with three login methods:
+ * - Email/Password (for creators and admins)
  * - Google OAuth (for creators)
- * - Phone OTP (mock, for creators)
- * - Email/Password (for admins)
+ * - Admin (dedicated admin tab)
  *
  * @module app/(auth)/login/page
  */
@@ -16,7 +16,7 @@ import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { Loader2, Eye, EyeOff, Phone, Mail } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Mail, ShieldCheck } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,13 +43,13 @@ export default function LoginPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
 
   // Creator email login form state
   const [emailForm, setEmailForm] = useState({ email: '', password: '' });
 
-  // OTP login form state
-  const [otpForm, setOtpForm] = useState({ phone: '', otp: '' });
-  const [otpSent, setOtpSent] = useState(false);
+  // Admin login form state
+  const [adminForm, setAdminForm] = useState({ email: '', password: '' });
 
   // ---------------------------------------------------------------------------
   // Google Sign-In
@@ -93,33 +93,24 @@ export default function LoginPage() {
   };
 
   // ---------------------------------------------------------------------------
-  // Phone OTP Sign-In
+  // Admin Email/Password Sign-In
   // ---------------------------------------------------------------------------
-  const handleSendOtp = () => {
-    if (otpForm.phone.length !== 10) {
-      toast.error('Please enter a valid 10-digit phone number');
-      return;
-    }
-    setOtpSent(true);
-    toast.success('OTP sent! Use 123456 for testing.');
-  };
-
-  const handleOtpSubmit = async (e: React.FormEvent) => {
+  const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      const result = await signIn('phone-otp', {
-        phone: otpForm.phone,
-        otp: otpForm.otp,
+      const result = await signIn('credentials', {
+        email: adminForm.email,
+        password: adminForm.password,
         redirect: false,
       });
 
       if (result?.error) {
         toast.error(result.error);
       } else {
-        toast.success('Login successful!');
-        router.push(callbackUrl);
+        toast.success('Admin login successful!');
+        router.push('/admin');
         router.refresh();
       }
     } catch {
@@ -128,6 +119,26 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  // ---------------------------------------------------------------------------
+  // Password visibility toggle helper
+  // ---------------------------------------------------------------------------
+  const PasswordToggle = ({
+    show,
+    onToggle,
+  }: {
+    show: boolean;
+    onToggle: () => void;
+  }) => (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+      tabIndex={-1}
+    >
+      {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+    </button>
+  );
 
   return (
     <div className="flex min-h-screen">
@@ -151,7 +162,7 @@ export default function LoginPage() {
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="email">Email</TabsTrigger>
                   <TabsTrigger value="google">Google</TabsTrigger>
-                  <TabsTrigger value="otp">Phone</TabsTrigger>
+                  <TabsTrigger value="admin">Admin</TabsTrigger>
                 </TabsList>
 
                 {/* Email Tab - Creator Email/Password */}
@@ -176,7 +187,15 @@ export default function LoginPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="email-password">Password</Label>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="email-password">Password</Label>
+                        <Link
+                          href="/forgot-password"
+                          className="text-xs font-medium text-primary hover:underline"
+                        >
+                          Forgot Password?
+                        </Link>
+                      </div>
                       <div className="relative">
                         <Input
                           id="email-password"
@@ -193,18 +212,10 @@ export default function LoginPage() {
                           disabled={isLoading}
                           className="pr-10"
                         />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          tabIndex={-1}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="size-4" />
-                          ) : (
-                            <Eye className="size-4" />
-                          )}
-                        </button>
+                        <PasswordToggle
+                          show={showPassword}
+                          onToggle={() => setShowPassword(!showPassword)}
+                        />
                       </div>
                     </div>
 
@@ -312,91 +323,73 @@ export default function LoginPage() {
                   </div>
                 </TabsContent>
 
-                {/* OTP Tab - Phone Login */}
-                <TabsContent value="otp" className="space-y-4 pt-4">
-                  <form onSubmit={handleOtpSubmit} className="space-y-4">
+                {/* Admin Tab */}
+                <TabsContent value="admin" className="space-y-4 pt-4">
+                  <form onSubmit={handleAdminSubmit} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="phone">Phone Number</Label>
-                      <div className="flex gap-2">
-                        <span className="flex h-9 items-center rounded-md border bg-muted px-3 text-sm text-muted-foreground">
-                          +91
-                        </span>
+                      <Label htmlFor="admin-email">Admin Email</Label>
+                      <Input
+                        id="admin-email"
+                        type="email"
+                        required
+                        value={adminForm.email}
+                        onChange={(e) =>
+                          setAdminForm((prev) => ({
+                            ...prev,
+                            email: e.target.value,
+                          }))
+                        }
+                        placeholder="admin@sitrus.club"
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="admin-password">Password</Label>
+                      <div className="relative">
                         <Input
-                          id="phone"
-                          type="tel"
-                          maxLength={10}
-                          placeholder="9876543210"
-                          value={otpForm.phone}
+                          id="admin-password"
+                          type={showAdminPassword ? 'text' : 'password'}
+                          required
+                          value={adminForm.password}
                           onChange={(e) =>
-                            setOtpForm((prev) => ({
+                            setAdminForm((prev) => ({
                               ...prev,
-                              phone: e.target.value.replace(/\D/g, ''),
+                              password: e.target.value,
                             }))
                           }
-                          disabled={isLoading || otpSent}
+                          placeholder="Enter admin password"
+                          disabled={isLoading}
+                          className="pr-10"
+                        />
+                        <PasswordToggle
+                          show={showAdminPassword}
+                          onToggle={() =>
+                            setShowAdminPassword(!showAdminPassword)
+                          }
                         />
                       </div>
                     </div>
 
-                    {!otpSent ? (
-                      <Button
-                        type="button"
-                        className="h-10 w-full"
-                        onClick={handleSendOtp}
-                        disabled={isLoading || otpForm.phone.length !== 10}
-                      >
-                        <Phone className="mr-2 size-4" />
-                        Send OTP
-                      </Button>
-                    ) : (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="otp">Enter OTP</Label>
-                          <Input
-                            id="otp"
-                            type="text"
-                            maxLength={6}
-                            placeholder="123456"
-                            value={otpForm.otp}
-                            onChange={(e) =>
-                              setOtpForm((prev) => ({
-                                ...prev,
-                                otp: e.target.value.replace(/\D/g, ''),
-                              }))
-                            }
-                            disabled={isLoading}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Use code <strong>123456</strong> for testing
-                          </p>
-                        </div>
-                        <Button
-                          type="submit"
-                          className="h-10 w-full"
-                          disabled={isLoading || otpForm.otp.length !== 6}
-                        >
-                          {isLoading ? (
-                            <Loader2 className="mr-2 size-4 animate-spin" />
-                          ) : null}
-                          Verify & Sign In
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="w-full"
-                          onClick={() => {
-                            setOtpSent(false);
-                            setOtpForm({ phone: '', otp: '' });
-                          }}
-                        >
-                          Change phone number
-                        </Button>
-                      </>
-                    )}
+                    <Button
+                      type="submit"
+                      disabled={isLoading}
+                      className="h-10 w-full"
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          Signing in...
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck className="mr-2 size-4" />
+                          Admin Sign In
+                        </>
+                      )}
+                    </Button>
                   </form>
                 </TabsContent>
-
               </Tabs>
             </CardContent>
           </Card>

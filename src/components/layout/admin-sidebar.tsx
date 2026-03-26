@@ -18,6 +18,7 @@ import {
   BarChart3,
   Wallet,
   IndianRupee,
+  Tag,
 } from "lucide-react"
 
 import { NavMain } from "@/components/layout/nav-main"
@@ -66,6 +67,11 @@ const adminNav = [
     title: "Products",
     url: "/admin/products",
     icon: ShoppingBag,
+  },
+  {
+    title: "Brands",
+    url: "/admin/brands",
+    icon: Tag,
   },
   {
     title: "Analytics",

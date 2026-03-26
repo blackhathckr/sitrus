@@ -72,6 +72,10 @@ model User {
   googleId String? @unique
   image    String?
 
+  // Password reset
+  resetToken       String?   @unique
+  resetTokenExpiry DateTime?
+
   // Relations
   creatorProfile CreatorProfile?
   links          Link[]
@@ -125,6 +129,33 @@ model CreatorProfile {
 }
 
 // =============================================================================
+// BRAND
+// =============================================================================
+
+model Brand {
+  id              String  @id @default(cuid())
+  name            String  @unique
+  slug            String  @unique
+  registeredName  String?
+  displayName     String?
+  logoUrl         String?
+  gstin           String? @unique
+  contactPOC      String?
+  contactPhone    String?
+  isActive        Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  products Product[]
+
+  @@index([name])
+  @@index([isActive])
+  @@map("brands")
+}
+
+// =============================================================================
 // PRODUCT CATALOG
 // =============================================================================
 
@@ -142,6 +173,8 @@ model Product {
   category      String
   subCategory   String?
   brand         String?
+  brandId       String?
+  brandRef      Brand?      @relation(fields: [brandId], references: [id], onDelete: SetNull)
   rating        Float?
   reviewCount   Int?
   inStock       Boolean     @default(true)
@@ -162,6 +195,7 @@ model Product {
   @@index([category])
   @@index([isActive])
   @@index([brand])
+  @@index([brandId])
   @@map("products")
 }
 
