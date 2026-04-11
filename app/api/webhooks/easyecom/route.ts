@@ -118,6 +118,63 @@ export async function POST(request: NextRequest) {
             fulfilledAt: status === 'delivered' ? new Date() : undefined,
           },
         });
+
+        // Create earning when order reaches confirmed/delivered (if not already created)
+        const earningStatuses = ['confirmed', 'delivered'];
+        if (earningStatuses.includes(status)) {
+          const fullOrder = await prisma.brandOrder.findUnique({
+            where: { easyecomOrderId: orderId },
+            select: { id: true, brandId: true, creatorId: true, linkId: true, orderValue: true, orderNumber: true, orderedAt: true },
+          });
+
+          if (fullOrder?.creatorId) {
+            // Check if earning already exists for this order
+            const existingEarning = await prisma.earning.findFirst({
+              where: { description: { contains: fullOrder.orderNumber } },
+            });
+
+            if (!existingEarning) {
+              const brand = await prisma.brand.findUnique({
+                where: { id: fullOrder.brandId },
+                select: { commissionRate: true },
+              });
+
+              if (brand?.commissionRate) {
+                const earningStatus = status === 'delivered' ? 'CONFIRMED' : 'PENDING';
+                await prisma.earning.create({
+                  data: {
+                    creatorId: fullOrder.creatorId,
+                    linkId: fullOrder.linkId,
+                    amount: fullOrder.orderValue * (brand.commissionRate / 100),
+                    status: earningStatus,
+                    period: formatPeriod(fullOrder.orderedAt),
+                    description: `Brand order #${fullOrder.orderNumber}`,
+                  },
+                });
+              }
+            } else if (status === 'delivered' && existingEarning.status === 'PENDING') {
+              // Upgrade existing earning to CONFIRMED on delivery
+              await prisma.earning.update({
+                where: { id: existingEarning.id },
+                data: { status: 'CONFIRMED' },
+              });
+            }
+          }
+        }
+
+        // Cancel earning if order is cancelled/returned
+        if (['cancelled', 'returned'].includes(status)) {
+          const fullOrder = await prisma.brandOrder.findUnique({
+            where: { easyecomOrderId: orderId },
+            select: { orderNumber: true },
+          });
+          if (fullOrder) {
+            await prisma.earning.updateMany({
+              where: { description: { contains: fullOrder.orderNumber }, status: { not: 'PAID' } },
+              data: { status: 'CANCELLED' },
+            });
+          }
+        }
       }
       return NextResponse.json({ status: 'ok', event: 'order_updated' });
     }
@@ -236,12 +293,13 @@ export async function POST(request: NextRequest) {
       });
 
       if (brand?.commissionRate) {
+        const earningStatus = status === 'delivered' ? 'CONFIRMED' : 'PENDING';
         await prisma.earning.create({
           data: {
             creatorId,
             linkId,
             amount: orderValue * (brand.commissionRate / 100),
-            status: 'PENDING',
+            status: earningStatus,
             period: formatPeriod(new Date(data.created_at || Date.now())),
             description: `Brand order #${brandOrder.orderNumber}`,
           },
