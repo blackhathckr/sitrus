@@ -42,6 +42,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { PageLottie } from '@/components/ui/page-lottie';
+import { TablePagination, PAGE_SIZE } from '@/components/ui/table-pagination';
 
 // =============================================================================
 // TYPES
@@ -57,9 +58,19 @@ interface Brand {
   gstin: string | null;
   contactPOC: string | null;
   contactPhone: string | null;
+  commissionRate: number | null;
+  websiteUrl: string | null;
   isActive: boolean;
   createdAt: string;
   _count: { products: number };
+}
+
+interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasMore: boolean;
 }
 
 interface BrandForm {
@@ -71,6 +82,8 @@ interface BrandForm {
   gstin: string;
   contactPOC: string;
   contactPhone: string;
+  commissionRate: string;
+  websiteUrl: string;
   isActive: boolean;
 }
 
@@ -83,8 +96,11 @@ const EMPTY_FORM: BrandForm = {
   gstin: '',
   contactPOC: '',
   contactPhone: '',
+  commissionRate: '',
+  websiteUrl: '',
   isActive: true,
 };
+
 
 // =============================================================================
 // HELPERS
@@ -104,8 +120,10 @@ function slugify(text: string): string {
 
 export default function AdminBrandsPage() {
   const [brands, setBrands] = useState<Brand[]>([]);
+  const [pagination, setPagination] = useState<Pagination | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -116,19 +134,31 @@ export default function AdminBrandsPage() {
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  // Search debounce
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // ---- Data fetching -------------------------------------------------------
 
   const fetchBrands = useCallback(async () => {
     try {
-      const res = await fetch('/api/brands');
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(PAGE_SIZE),
+      });
+      if (search) {
+        params.set('search', search);
+      }
+
+      const res = await fetch(`/api/brands?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch brands');
       const json = await res.json();
       setBrands(json.data);
+      setPagination(json.pagination);
     } catch (err) {
       console.error('[Brands] fetch error:', err);
       toast.error('Failed to load brands');
     }
-  }, []);
+  }, [page, search]);
 
   useEffect(() => {
     async function load() {
@@ -138,6 +168,14 @@ export default function AdminBrandsPage() {
     }
     load();
   }, [fetchBrands]);
+
+  function handleSearchChange(value: string) {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => {
+      setSearch(value);
+      setPage(1);
+    }, 300);
+  }
 
   // ---- Logo upload ---------------------------------------------------------
 
@@ -174,7 +212,6 @@ export default function AdminBrandsPage() {
   }
 
   function handleRemoveLogo() {
-    // If current logo is an Azure blob and we're editing, it'll be cleaned up on save
     setForm((prev) => ({ ...prev, logoUrl: '' }));
     if (logoInputRef.current) logoInputRef.current.value = '';
   }
@@ -198,6 +235,8 @@ export default function AdminBrandsPage() {
       gstin: brand.gstin ?? '',
       contactPOC: brand.contactPOC ?? '',
       contactPhone: brand.contactPhone ?? '',
+      commissionRate: brand.commissionRate != null ? String(brand.commissionRate) : '',
+      websiteUrl: brand.websiteUrl ?? '',
       isActive: brand.isActive,
     });
     setDialogOpen(true);
@@ -207,7 +246,6 @@ export default function AdminBrandsPage() {
     setForm((prev) => ({
       ...prev,
       name: value,
-      // Only auto-generate slug for new brands
       ...(editingBrand ? {} : { slug: slugify(value) }),
     }));
   }
@@ -233,6 +271,8 @@ export default function AdminBrandsPage() {
         gstin: form.gstin.trim() || null,
         contactPOC: form.contactPOC.trim() || null,
         contactPhone: form.contactPhone.trim() || null,
+        commissionRate: form.commissionRate ? parseFloat(form.commissionRate) : null,
+        websiteUrl: form.websiteUrl.trim() || null,
         isActive: form.isActive,
       };
 
@@ -306,23 +346,13 @@ export default function AdminBrandsPage() {
 
   // ---- Loading state -------------------------------------------------------
 
-  if (isLoading) {
+  if (isLoading && brands.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center p-6">
         <PageLottie name="analytics" description="Loading brands..." />
       </div>
     );
   }
-
-  // ---- Filtered data -------------------------------------------------------
-
-  const filtered = search
-    ? brands.filter(
-        (b) =>
-          b.name.toLowerCase().includes(search.toLowerCase()) ||
-          b.slug.toLowerCase().includes(search.toLowerCase())
-      )
-    : brands;
 
   // ---- Render --------------------------------------------------------------
 
@@ -332,7 +362,7 @@ export default function AdminBrandsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Brands</h1>
           <p className="text-muted-foreground">
-            Manage the brand master data ({brands.length} brands)
+            Manage the brand master data ({pagination?.total ?? brands.length} brands)
           </p>
         </div>
         <Button className="gap-1.5" onClick={openCreateDialog}>
@@ -348,8 +378,8 @@ export default function AdminBrandsPage() {
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search brands..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              defaultValue={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-9"
             />
           </div>
@@ -357,7 +387,7 @@ export default function AdminBrandsPage() {
       </Card>
 
       {/* Table */}
-      {filtered.length === 0 ? (
+      {brands.length === 0 ? (
         <PageLottie
           name="analytics"
           description={
@@ -379,7 +409,7 @@ export default function AdminBrandsPage() {
           <CardHeader>
             <CardTitle>All Brands</CardTitle>
             <CardDescription>
-              {filtered.length} brand{filtered.length !== 1 ? 's' : ''}
+              {pagination?.total ?? brands.length} brand{(pagination?.total ?? brands.length) !== 1 ? 's' : ''}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -396,7 +426,7 @@ export default function AdminBrandsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((brand) => (
+                {brands.map((brand) => (
                   <TableRow key={brand.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -478,6 +508,16 @@ export default function AdminBrandsPage() {
                 ))}
               </TableBody>
             </Table>
+
+            {/* Pagination */}
+            {pagination && (
+              <TablePagination
+                pagination={pagination}
+                label="brands"
+                onPreviousPage={() => setPage((p) => Math.max(1, p - 1))}
+                onNextPage={() => setPage((p) => p + 1)}
+              />
+            )}
           </CardContent>
         </Card>
       )}
@@ -588,6 +628,35 @@ export default function AdminBrandsPage() {
                   value={form.contactPhone}
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, contactPhone: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="brand-commission">Commission Rate (%)</Label>
+                <Input
+                  id="brand-commission"
+                  type="number"
+                  placeholder="e.g. 10"
+                  value={form.commissionRate}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, commissionRate: e.target.value }))
+                  }
+                  min="0"
+                  max="100"
+                  step="0.1"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="brand-website">Website URL</Label>
+                <Input
+                  id="brand-website"
+                  placeholder="e.g. https://izfworld.com"
+                  value={form.websiteUrl}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, websiteUrl: e.target.value }))
                   }
                 />
               </div>

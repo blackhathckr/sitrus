@@ -30,7 +30,9 @@ export type Resource =
   | 'earnings'
   | 'payouts'
   | 'analytics'
-  | 'users';
+  | 'users'
+  | 'integrations'
+  | 'brand_orders';
 
 /**
  * Standard CRUD actions.
@@ -72,6 +74,8 @@ const PERMISSION_MATRIX: Record<
     payouts: ['create', 'read', 'update', 'delete'],
     analytics: ['read'],
     users: ['create', 'read', 'update', 'delete'],
+    integrations: ['create', 'read', 'update', 'delete'],
+    brand_orders: ['create', 'read', 'update', 'delete'],
   },
 
   // Creator: Own profile/links/collections, read products, read own clicks/earnings
@@ -86,6 +90,8 @@ const PERMISSION_MATRIX: Record<
     payouts: [],
     analytics: ['read'],
     users: [],
+    integrations: [],
+    brand_orders: ['read'],
   },
 };
 

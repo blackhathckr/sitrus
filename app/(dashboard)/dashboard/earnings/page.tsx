@@ -42,6 +42,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageLottie } from '@/components/ui/page-lottie';
+import { TablePagination, PAGE_SIZE, type PaginationData } from '@/components/ui/table-pagination';
 import { KPICard } from '@/components/dashboard';
 
 // ---------------------------------------------------------------------------
@@ -169,6 +170,8 @@ export default function EarningsPage() {
   // ---- State ---------------------------------------------------------------
   const [summary, setSummary] = useState<EarningsSummary | null>(null);
   const [earnings, setEarnings] = useState<Earning[]>([]);
+  const [earningsPagination, setEarningsPagination] = useState<PaginationData | null>(null);
+  const [earningsPage, setEarningsPage] = useState(1);
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRequesting, setIsRequesting] = useState(false);
@@ -197,15 +200,20 @@ export default function EarningsPage() {
    */
   const fetchEarnings = useCallback(async () => {
     try {
-      const res = await fetch('/api/earnings');
+      const params = new URLSearchParams({
+        page: String(earningsPage),
+        limit: String(PAGE_SIZE),
+      });
+      const res = await fetch(`/api/earnings?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch earnings');
       const json = await res.json();
       setEarnings(json.data);
+      setEarningsPagination(json.pagination);
     } catch (err) {
       console.error('[Earnings] fetchEarnings error:', err);
       toast.error('Failed to load earnings');
     }
-  }, []);
+  }, [earningsPage]);
 
   /**
    * Fetches payout history from GET /api/payouts.
@@ -230,6 +238,14 @@ export default function EarningsPage() {
     }
     load();
   }, [fetchSummary, fetchEarnings, fetchPayouts]);
+
+  /** Refetch earnings when page changes (after initial load). */
+  useEffect(() => {
+    if (!isLoading) {
+      fetchEarnings();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [earningsPage]);
 
   // ---- Handlers ------------------------------------------------------------
 
@@ -495,6 +511,16 @@ export default function EarningsPage() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Pagination */}
+            {earningsPagination && (
+              <TablePagination
+                pagination={earningsPagination}
+                label="earnings"
+                onPreviousPage={() => setEarningsPage((p) => Math.max(1, p - 1))}
+                onNextPage={() => setEarningsPage((p) => p + 1)}
+              />
+            )}
           </CardContent>
         </Card>
       )}

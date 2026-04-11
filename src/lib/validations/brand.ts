@@ -28,6 +28,8 @@ export const createBrandSchema = z.object({
     .or(z.null()),
   contactPOC: z.string().max(100).trim().optional().or(z.literal('')).or(z.null()),
   contactPhone: z.string().max(15).trim().optional().or(z.literal('')).or(z.null()),
+  commissionRate: z.number().min(0).max(100).optional().or(z.null()),
+  websiteUrl: z.string().url('Invalid website URL').optional().or(z.literal('')).or(z.null()),
   isActive: z.boolean().optional().default(true),
 });
 
@@ -54,6 +56,8 @@ export const updateBrandSchema = z.object({
     .or(z.null()),
   contactPOC: z.string().max(100).trim().optional().or(z.literal('')).or(z.null()),
   contactPhone: z.string().max(15).trim().optional().or(z.literal('')).or(z.null()),
+  commissionRate: z.number().min(0).max(100).optional().or(z.null()),
+  websiteUrl: z.string().url('Invalid website URL').optional().or(z.literal('')).or(z.null()),
   isActive: z.boolean().optional(),
 });
 

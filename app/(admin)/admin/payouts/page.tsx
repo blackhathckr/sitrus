@@ -41,6 +41,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { PageLottie } from '@/components/ui/page-lottie';
+import { TablePagination, PAGE_SIZE } from '@/components/ui/table-pagination';
 import { formatDistanceToNow } from 'date-fns';
 
 // =============================================================================
@@ -164,10 +165,11 @@ export default function AdminPayoutsPage() {
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [page, setPage] = useState(1);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 15,
     total: 0,
     totalPages: 0,
     hasMore: false,
@@ -181,8 +183,8 @@ export default function AdminPayoutsPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        limit: '50',
-        page: '1',
+        limit: String(PAGE_SIZE),
+        page: String(page),
       });
 
       if (statusFilter !== 'ALL') {
@@ -204,7 +206,7 @@ export default function AdminPayoutsPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, page]);
 
   // Fetch payouts on mount and when status filter changes
   useEffect(() => {
@@ -328,9 +330,10 @@ export default function AdminPayoutsPage() {
               </span>
               <Select
                 value={statusFilter}
-                onValueChange={(value) =>
-                  setStatusFilter(value as StatusFilter)
-                }
+                onValueChange={(value) => {
+                    setStatusFilter(value as StatusFilter);
+                    setPage(1);
+                  }}
               >
                 <SelectTrigger className="w-[160px]">
                   <SelectValue placeholder="Filter by status" />
@@ -497,13 +500,13 @@ export default function AdminPayoutsPage() {
             </div>
           )}
 
-          {/* Pagination Summary */}
-          {pagination.total > 0 && (
-            <p className="mt-4 text-center text-xs text-muted-foreground">
-              Showing {payouts.length} of {pagination.total} payout
-              {pagination.total !== 1 ? 's' : ''}
-            </p>
-          )}
+          {/* Pagination */}
+          <TablePagination
+            pagination={pagination}
+            label="payouts"
+            onPreviousPage={() => setPage((p) => Math.max(1, p - 1))}
+            onNextPage={() => setPage((p) => p + 1)}
+          />
         </CardContent>
       </Card>
     </div>

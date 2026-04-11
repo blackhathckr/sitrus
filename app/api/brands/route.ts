@@ -2,6 +2,7 @@
  * Brands API Routes
  *
  * GET  /api/brands - List all brands (public for product filtering, admin sees all).
+ *                    Supports pagination via ?page=&limit= params.
  * POST /api/brands - Create a new brand (admin only).
  *
  * @module api/brands
@@ -18,8 +19,9 @@ import { Prisma } from '@prisma/client';
 /**
  * GET /api/brands
  *
- * Returns all brands. For non-admin users, only active brands are returned.
- * Includes product count.
+ * Returns brands. For non-admin users, only active brands are returned.
+ * Includes product count. Supports optional pagination via page/limit params.
+ * If page is not provided, returns all brands (backward compatible).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -28,15 +30,53 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || undefined;
+    const pageParam = searchParams.get('page');
+    const limitParam = searchParams.get('limit');
 
     const where: Prisma.BrandWhereInput = {};
     if (!isAdmin) {
       where.isActive = true;
     }
     if (search) {
-      where.name = { contains: search, mode: 'insensitive' };
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { slug: { contains: search, mode: 'insensitive' } },
+      ];
     }
 
+    // If page param is provided, return paginated response
+    if (pageParam) {
+      const page = Math.max(1, parseInt(pageParam));
+      const limit = Math.min(100, Math.max(1, parseInt(limitParam || '15')));
+
+      const [total, brands] = await Promise.all([
+        prisma.brand.count({ where }),
+        prisma.brand.findMany({
+          where,
+          include: {
+            _count: { select: { products: true } },
+          },
+          orderBy: { name: 'asc' },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+      ]);
+
+      const totalPages = Math.ceil(total / limit);
+
+      return NextResponse.json({
+        data: brands,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasMore: page < totalPages,
+        },
+      });
+    }
+
+    // No page param — return all brands (backward compatible for dropdowns etc.)
     const brands = await prisma.brand.findMany({
       where,
       include: {
@@ -83,6 +123,8 @@ export async function POST(request: NextRequest) {
         gstin: validatedData.gstin || null,
         contactPOC: validatedData.contactPOC || null,
         contactPhone: validatedData.contactPhone || null,
+        commissionRate: validatedData.commissionRate ?? null,
+        websiteUrl: validatedData.websiteUrl || null,
         isActive: validatedData.isActive,
       },
       include: {

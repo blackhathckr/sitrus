@@ -36,6 +36,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { PageLottie } from '@/components/ui/page-lottie';
+import { TablePagination, PAGE_SIZE } from '@/components/ui/table-pagination';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,7 +85,6 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 const SHORT_URL_DOMAIN = `${APP_URL}/api/r`;
 
 /** Number of links displayed per page */
-const PAGE_SIZE = 10;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -369,30 +369,13 @@ export default function LinksPage() {
           </div>
 
           {/* Pagination Controls */}
-          {pagination && pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between pt-4">
-              <p className="text-sm text-muted-foreground">
-                Page {pagination.page} of {pagination.totalPages}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePreviousPage}
-                  disabled={page <= 1}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleNextPage}
-                  disabled={!pagination.hasMore}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+          {pagination && (
+            <TablePagination
+              pagination={pagination}
+              label="links"
+              onPreviousPage={handlePreviousPage}
+              onNextPage={handleNextPage}
+            />
           )}
         </CardContent>
       </Card>

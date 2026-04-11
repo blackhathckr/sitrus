@@ -83,6 +83,7 @@ model User {
   payouts        Payout[]
   collections    Collection[]
   auditLogs      AuditLog[]
+  brandOrders    BrandOrder[]
 
   @@index([email])
   @@index([phone])
@@ -144,11 +145,17 @@ model Brand {
   contactPhone    String?
   isActive        Boolean @default(true)
 
+  // Brand integration metadata
+  commissionRate Float?  // Default commission rate for creators (e.g. 10.0 = 10%)
+  websiteUrl     String? // Brand's consumer-facing website (e.g. https://izfworld.com)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  products Product[]
+  products    Product[]
+  integration BrandIntegration?
+  orders      BrandOrder[]
 
   @@index([name])
   @@index([isActive])
@@ -160,29 +167,34 @@ model Brand {
 // =============================================================================
 
 model Product {
-  id            String      @id @default(cuid())
+  id            String       @id @default(cuid())
   title         String
-  description   String?     @db.Text
+  description   String?      @db.Text
   imageUrl      String
-  images        String[]    @default([])
+  images        String[]     @default([])
   price         Float
   originalPrice Float?
-  currency      String      @default("INR")
+  currency      String       @default("INR")
   sourceUrl     String
-  marketplace   Marketplace
+  marketplace   Marketplace?
   category      String
   subCategory   String?
   brand         String?
   brandId       String?
-  brandRef      Brand?      @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  brandRef      Brand?       @relation(fields: [brandId], references: [id], onDelete: SetNull)
   rating        Float?
   reviewCount   Int?
-  inStock       Boolean     @default(true)
-  isActive      Boolean     @default(true)
+  inStock       Boolean      @default(true)
+  isActive      Boolean      @default(true)
 
   // Affiliate metadata
   affiliateBaseUrl String?
   commissionRate   Float?
+
+  // EasyEcom sync fields (for brand-sourced products)
+  easyecomProductId String? @unique // EasyEcom cp_id
+  easyecomSku       String?         // EasyEcom SKU code
+  stockQuantity     Int?            // Actual stock count from EasyEcom
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -196,6 +208,7 @@ model Product {
   @@index([isActive])
   @@index([brand])
   @@index([brandId])
+  @@index([easyecomProductId])
   @@map("products")
 }
 
@@ -222,8 +235,9 @@ model Link {
   updatedAt DateTime @updatedAt
 
   // Relations
-  clicks   Click[]
-  earnings Earning[]
+  clicks      Click[]
+  earnings    Earning[]
+  brandOrders BrandOrder[]
 
   @@index([creatorId])
   @@index([productId])
@@ -374,4 +388,105 @@ model AuditLog {
   @@index([entityType])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// =============================================================================
+// BRAND INTEGRATION (EasyEcom / external OMS credentials)
+// =============================================================================
+
+model BrandIntegration {
+  id      String @id @default(cuid())
+  brandId String @unique
+  brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  provider    String  // "easyecom" | "shopify" | "custom"
+  apiKeyEnc   String  @db.Text // AES-256-GCM encrypted x-api-key
+  emailEnc    String  @db.Text // AES-256-GCM encrypted API user email
+  passwordEnc String  @db.Text // AES-256-GCM encrypted API user password
+  locationKey String            // Location ID (not secret)
+
+  // Cached JWT token (encrypted)
+  jwtTokenEnc    String?   @db.Text
+  tokenExpiresAt DateTime?
+
+  // Sync state
+  lastProductSync   DateTime?
+  lastInventorySync DateTime?
+  lastOrderSync     DateTime?
+  syncEnabled       Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("brand_integrations")
+}
+
+// =============================================================================
+// BRAND ORDERS (orders tracked from external brands via EasyEcom)
+// =============================================================================
+
+model BrandOrder {
+  id      String @id @default(cuid())
+  brandId String
+  brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  // EasyEcom reference
+  easyecomOrderId   String  @unique
+  easyecomInvoiceId String?
+
+  // Attribution — which creator's SitLink drove this order
+  creatorId   String?
+  creator     User?   @relation(fields: [creatorId], references: [id], onDelete: SetNull)
+  linkId      String?
+  link        Link?   @relation(fields: [linkId], references: [id], onDelete: SetNull)
+  utmSource   String?
+  utmCampaign String? // Creator slug for attribution
+  utmMedium   String?
+  utmContent  String? // SitLink shortCode for attribution
+
+  // Order details
+  orderNumber   String
+  customerName  String?
+  customerEmail String?
+  orderValue    Float
+  currency      String @default("INR")
+  status        String // placed, confirmed, dispatched, delivered, cancelled, returned
+  itemCount     Int    @default(1)
+
+  orderedAt   DateTime
+  fulfilledAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  items BrandOrderItem[]
+
+  @@index([brandId])
+  @@index([creatorId])
+  @@index([linkId])
+  @@index([status])
+  @@index([orderedAt])
+  @@map("brand_orders")
+}
+
+// =============================================================================
+// BRAND ORDER ITEMS
+// =============================================================================
+
+model BrandOrderItem {
+  id      String     @id @default(cuid())
+  orderId String
+  order   BrandOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  easyecomProductId String?
+  sku               String?
+  productName       String
+  quantity          Int
+  unitPrice         Float
+  totalPrice        Float
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@map("brand_order_items")
 }

@@ -167,6 +167,7 @@ export async function POST(request: NextRequest) {
         sourceUrl: true,
         affiliateBaseUrl: true,
         isActive: true,
+        brandId: true,
       },
     });
 
@@ -202,10 +203,24 @@ export async function POST(request: NextRequest) {
     // Generate a unique 8-character short code
     const shortCode = nanoid(8);
 
-    // Build the affiliate URL
+    // Build the affiliate URL — brand products use UTM params for attribution
     const baseUrl = product.affiliateBaseUrl || product.sourceUrl;
     const separator = baseUrl.includes('?') ? '&' : '?';
-    const affiliateUrl = `${baseUrl}${separator}ref=sitrus&code=${shortCode}`;
+    let affiliateUrl: string;
+
+    if (product.brandId) {
+      // Brand product: fetch creator slug for UTM attribution
+      const creatorProfile = await prisma.creatorProfile.findUnique({
+        where: { userId: session.user.id },
+        select: { slug: true },
+      });
+      const creatorSlug = creatorProfile?.slug || session.user.id;
+
+      affiliateUrl = `${baseUrl}${separator}utm_source=sitrus&utm_medium=creator&utm_campaign=${creatorSlug}&utm_content=${shortCode}`;
+    } else {
+      // Marketplace product: existing ref-based tracking
+      affiliateUrl = `${baseUrl}${separator}ref=sitrus&code=${shortCode}`;
+    }
 
     // Create the link
     const link = await prisma.link.create({

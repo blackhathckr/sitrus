@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageLottie } from '@/components/ui/page-lottie';
+import { TablePagination, PAGE_SIZE } from '@/components/ui/table-pagination';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -83,7 +84,6 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 const SHORT_URL_DOMAIN = `${APP_URL}/api/r`;
 
 /** Number of products per page */
-const PAGE_SIZE = 12;
 
 /** Debounce delay in milliseconds for the search input */
 const SEARCH_DEBOUNCE_MS = 300;
@@ -556,33 +556,13 @@ export default function ProductsPage() {
           </div>
 
           {/* Pagination */}
-          {pagination && pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Page {pagination.page} of {pagination.totalPages}
-                <span className="ml-1">
-                  ({pagination.total} product{pagination.total !== 1 ? 's' : ''})
-                </span>
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePreviousPage}
-                  disabled={page <= 1}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleNextPage}
-                  disabled={!pagination.hasMore}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+          {pagination && (
+            <TablePagination
+              pagination={pagination}
+              label="products"
+              onPreviousPage={handlePreviousPage}
+              onNextPage={handleNextPage}
+            />
           )}
         </>
       )}

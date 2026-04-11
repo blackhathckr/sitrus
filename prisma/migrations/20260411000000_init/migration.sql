@@ -28,6 +28,8 @@ CREATE TABLE "users" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "googleId" TEXT,
     "image" TEXT,
+    "resetToken" TEXT,
+    "resetTokenExpiry" TIMESTAMP(3),
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
@@ -54,6 +56,26 @@ CREATE TABLE "creator_profiles" (
 );
 
 -- CreateTable
+CREATE TABLE "brands" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "registeredName" TEXT,
+    "displayName" TEXT,
+    "logoUrl" TEXT,
+    "gstin" TEXT,
+    "contactPOC" TEXT,
+    "contactPhone" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "commissionRate" DOUBLE PRECISION,
+    "websiteUrl" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "brands_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "products" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -64,16 +86,20 @@ CREATE TABLE "products" (
     "originalPrice" DOUBLE PRECISION,
     "currency" TEXT NOT NULL DEFAULT 'INR',
     "sourceUrl" TEXT NOT NULL,
-    "marketplace" "Marketplace" NOT NULL,
+    "marketplace" "Marketplace",
     "category" TEXT NOT NULL,
     "subCategory" TEXT,
     "brand" TEXT,
+    "brandId" TEXT,
     "rating" DOUBLE PRECISION,
     "reviewCount" INTEGER,
     "inStock" BOOLEAN NOT NULL DEFAULT true,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "affiliateBaseUrl" TEXT,
     "commissionRate" DOUBLE PRECISION,
+    "easyecomProductId" TEXT,
+    "easyecomSku" TEXT,
+    "stockQuantity" INTEGER,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -188,6 +214,69 @@ CREATE TABLE "audit_logs" (
     CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "brand_integrations" (
+    "id" TEXT NOT NULL,
+    "brandId" TEXT NOT NULL,
+    "provider" TEXT NOT NULL,
+    "apiKeyEnc" TEXT NOT NULL,
+    "emailEnc" TEXT NOT NULL,
+    "passwordEnc" TEXT NOT NULL,
+    "locationKey" TEXT NOT NULL,
+    "jwtTokenEnc" TEXT,
+    "tokenExpiresAt" TIMESTAMP(3),
+    "lastProductSync" TIMESTAMP(3),
+    "lastInventorySync" TIMESTAMP(3),
+    "lastOrderSync" TIMESTAMP(3),
+    "syncEnabled" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "brand_integrations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "brand_orders" (
+    "id" TEXT NOT NULL,
+    "brandId" TEXT NOT NULL,
+    "easyecomOrderId" TEXT NOT NULL,
+    "easyecomInvoiceId" TEXT,
+    "creatorId" TEXT,
+    "linkId" TEXT,
+    "utmSource" TEXT,
+    "utmCampaign" TEXT,
+    "utmMedium" TEXT,
+    "utmContent" TEXT,
+    "orderNumber" TEXT NOT NULL,
+    "customerName" TEXT,
+    "customerEmail" TEXT,
+    "orderValue" DOUBLE PRECISION NOT NULL,
+    "currency" TEXT NOT NULL DEFAULT 'INR',
+    "status" TEXT NOT NULL,
+    "itemCount" INTEGER NOT NULL DEFAULT 1,
+    "orderedAt" TIMESTAMP(3) NOT NULL,
+    "fulfilledAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "brand_orders_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "brand_order_items" (
+    "id" TEXT NOT NULL,
+    "orderId" TEXT NOT NULL,
+    "easyecomProductId" TEXT,
+    "sku" TEXT,
+    "productName" TEXT NOT NULL,
+    "quantity" INTEGER NOT NULL,
+    "unitPrice" DOUBLE PRECISION NOT NULL,
+    "totalPrice" DOUBLE PRECISION NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "brand_order_items_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
@@ -196,6 +285,9 @@ CREATE UNIQUE INDEX "users_phone_key" ON "users"("phone");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_googleId_key" ON "users"("googleId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_resetToken_key" ON "users"("resetToken");
 
 -- CreateIndex
 CREATE INDEX "users_email_idx" ON "users"("email");
@@ -225,6 +317,24 @@ CREATE INDEX "creator_profiles_instagramHandle_idx" ON "creator_profiles"("insta
 CREATE INDEX "creator_profiles_isApproved_idx" ON "creator_profiles"("isApproved");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "brands_name_key" ON "brands"("name");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "brands_slug_key" ON "brands"("slug");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "brands_gstin_key" ON "brands"("gstin");
+
+-- CreateIndex
+CREATE INDEX "brands_name_idx" ON "brands"("name");
+
+-- CreateIndex
+CREATE INDEX "brands_isActive_idx" ON "brands"("isActive");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "products_easyecomProductId_key" ON "products"("easyecomProductId");
+
+-- CreateIndex
 CREATE INDEX "products_marketplace_idx" ON "products"("marketplace");
 
 -- CreateIndex
@@ -235,6 +345,12 @@ CREATE INDEX "products_isActive_idx" ON "products"("isActive");
 
 -- CreateIndex
 CREATE INDEX "products_brand_idx" ON "products"("brand");
+
+-- CreateIndex
+CREATE INDEX "products_brandId_idx" ON "products"("brandId");
+
+-- CreateIndex
+CREATE INDEX "products_easyecomProductId_idx" ON "products"("easyecomProductId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "links_shortCode_key" ON "links"("shortCode");
@@ -305,8 +421,35 @@ CREATE INDEX "audit_logs_entityType_idx" ON "audit_logs"("entityType");
 -- CreateIndex
 CREATE INDEX "audit_logs_createdAt_idx" ON "audit_logs"("createdAt");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "brand_integrations_brandId_key" ON "brand_integrations"("brandId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "brand_orders_easyecomOrderId_key" ON "brand_orders"("easyecomOrderId");
+
+-- CreateIndex
+CREATE INDEX "brand_orders_brandId_idx" ON "brand_orders"("brandId");
+
+-- CreateIndex
+CREATE INDEX "brand_orders_creatorId_idx" ON "brand_orders"("creatorId");
+
+-- CreateIndex
+CREATE INDEX "brand_orders_linkId_idx" ON "brand_orders"("linkId");
+
+-- CreateIndex
+CREATE INDEX "brand_orders_status_idx" ON "brand_orders"("status");
+
+-- CreateIndex
+CREATE INDEX "brand_orders_orderedAt_idx" ON "brand_orders"("orderedAt");
+
+-- CreateIndex
+CREATE INDEX "brand_order_items_orderId_idx" ON "brand_order_items"("orderId");
+
 -- AddForeignKey
 ALTER TABLE "creator_profiles" ADD CONSTRAINT "creator_profiles_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "products" ADD CONSTRAINT "products_brandId_fkey" FOREIGN KEY ("brandId") REFERENCES "brands"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "links" ADD CONSTRAINT "links_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -337,3 +480,19 @@ ALTER TABLE "payouts" ADD CONSTRAINT "payouts_creatorId_fkey" FOREIGN KEY ("crea
 
 -- AddForeignKey
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "brand_integrations" ADD CONSTRAINT "brand_integrations_brandId_fkey" FOREIGN KEY ("brandId") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "brand_orders" ADD CONSTRAINT "brand_orders_brandId_fkey" FOREIGN KEY ("brandId") REFERENCES "brands"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "brand_orders" ADD CONSTRAINT "brand_orders_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "brand_orders" ADD CONSTRAINT "brand_orders_linkId_fkey" FOREIGN KEY ("linkId") REFERENCES "links"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "brand_order_items" ADD CONSTRAINT "brand_order_items_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "brand_orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+

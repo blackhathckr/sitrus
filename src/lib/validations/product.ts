@@ -32,6 +32,8 @@ export const productSearchSchema = z.object({
   category: z.string().optional(),
   /** Filter by marketplace source */
   marketplace: z.nativeEnum(Marketplace).optional(),
+  /** Filter by brand ID (for brand-sourced products) */
+  brandId: z.string().optional(),
   /** Free-text search query */
   search: z.string().optional(),
   /** Minimum price filter (inclusive) */
@@ -76,8 +78,8 @@ export const createProductSchema = z.object({
   originalPrice: z.number().positive('Original price must be positive').optional(),
   /** URL to the product on its source marketplace */
   sourceUrl: z.string().url('Invalid source URL'),
-  /** Marketplace where the product is listed */
-  marketplace: z.nativeEnum(Marketplace),
+  /** Marketplace where the product is listed (null for brand-sourced products) */
+  marketplace: z.nativeEnum(Marketplace).nullable().optional(),
   /** Primary product category */
   category: z.string().min(1, 'Category is required').trim(),
   /** Secondary category for finer classification */

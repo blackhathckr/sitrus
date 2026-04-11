@@ -19,6 +19,8 @@ import {
   Wallet,
   IndianRupee,
   Tag,
+  Plug,
+  ShoppingCart,
 } from "lucide-react"
 
 import { NavMain } from "@/components/layout/nav-main"
@@ -72,6 +74,16 @@ const adminNav = [
     title: "Brands",
     url: "/admin/brands",
     icon: Tag,
+  },
+  {
+    title: "Integrations",
+    url: "/admin/integrations",
+    icon: Plug,
+  },
+  {
+    title: "Brand Orders",
+    url: "/admin/brand-orders",
+    icon: ShoppingCart,
   },
   {
     title: "Analytics",

@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
       minPrice,
       maxPrice,
       brand,
+      brandId,
       page,
       limit,
       sortBy,
@@ -61,6 +62,10 @@ export async function GET(request: NextRequest) {
 
     if (brand) {
       where.brand = { contains: brand, mode: 'insensitive' };
+    }
+
+    if (brandId) {
+      where.brandId = brandId;
     }
 
     if (minPrice !== undefined || maxPrice !== undefined) {

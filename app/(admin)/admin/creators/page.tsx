@@ -36,6 +36,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { PageLottie } from '@/components/ui/page-lottie';
+import { TablePagination, PAGE_SIZE } from '@/components/ui/table-pagination';
 import { formatDistanceToNow } from 'date-fns';
 
 // =============================================================================
@@ -90,10 +91,11 @@ export default function AdminCreatorsPage() {
   const [creators, setCreators] = useState<CreatorProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 50,
+    limit: 15,
     total: 0,
     totalPages: 0,
     hasMore: false,
@@ -107,8 +109,8 @@ export default function AdminCreatorsPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        limit: '50',
-        page: '1',
+        limit: String(PAGE_SIZE),
+        page: String(page),
       });
 
       if (search.trim()) {
@@ -130,9 +132,14 @@ export default function AdminCreatorsPage() {
     } finally {
       setLoading(false);
     }
+  }, [search, page]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setPage(1);
   }, [search]);
 
-  // Fetch creators on mount and when search changes (debounced)
+  // Fetch creators on mount and when search/page changes (debounced)
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
       fetchCreators();
@@ -399,13 +406,13 @@ export default function AdminCreatorsPage() {
             </div>
           )}
 
-          {/* Pagination Summary */}
-          {pagination.total > 0 && (
-            <p className="mt-4 text-center text-xs text-muted-foreground">
-              Showing {creators.length} of {pagination.total} creator
-              {pagination.total !== 1 ? 's' : ''}
-            </p>
-          )}
+          {/* Pagination */}
+          <TablePagination
+            pagination={pagination}
+            label="creators"
+            onPreviousPage={() => setPage((p) => Math.max(1, p - 1))}
+            onNextPage={() => setPage((p) => p + 1)}
+          />
         </CardContent>
       </Card>
     </div>

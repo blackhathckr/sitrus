@@ -51,6 +51,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { PageLottie } from '@/components/ui/page-lottie';
+import { TablePagination, PAGE_SIZE } from '@/components/ui/table-pagination';
 import { formatDistanceToNow } from 'date-fns';
 
 // =============================================================================
@@ -117,7 +118,6 @@ const CATEGORIES = [
 const MARKETPLACES = ['MYNTRA', 'FLIPKART', 'AJIO', 'AMAZON'] as const;
 
 /** Number of products per page */
-const PAGE_SIZE = 15;
 
 /** Default empty form values */
 const EMPTY_FORM: ProductForm = {
@@ -911,31 +911,13 @@ export default function AdminProductsPage() {
               </div>
 
               {/* Pagination */}
-              {pagination && pagination.totalPages > 1 && (
-                <div className="flex items-center justify-between pt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Page {pagination.page} of {pagination.totalPages}{' '}
-                    ({pagination.total} products)
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handlePreviousPage}
-                      disabled={page <= 1}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleNextPage}
-                      disabled={!pagination.hasMore}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
+              {pagination && (
+                <TablePagination
+                  pagination={pagination}
+                  label="products"
+                  onPreviousPage={handlePreviousPage}
+                  onNextPage={handleNextPage}
+                />
               )}
             </>
           )}

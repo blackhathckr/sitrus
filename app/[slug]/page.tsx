@@ -249,7 +249,7 @@ function ProductCard({
     price: number;
     originalPrice: number | null;
     currency: string;
-    marketplace: string;
+    marketplace: string | null;
     brand: string | null;
   };
   linkHref: string;

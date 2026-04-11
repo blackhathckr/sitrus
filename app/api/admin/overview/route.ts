@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
       earningsByStatus,
       pendingPayouts,
       newCreatorsThisMonth,
+      brandOrderStats,
     ] = await Promise.all([
       // Total creators (users with role CREATOR)
       prisma.user.count({
@@ -98,6 +99,13 @@ export async function GET(request: NextRequest) {
           },
         });
       })(),
+
+      // Brand GMV (total order value from brand integrations, excluding cancelled)
+      prisma.brandOrder.aggregate({
+        where: { status: { not: 'cancelled' } },
+        _sum: { orderValue: true },
+        _count: { id: true },
+      }),
     ]);
 
     // Transform earnings by status into a structured object
@@ -135,6 +143,10 @@ export async function GET(request: NextRequest) {
           pendingAmount: pendingPayouts._sum.amount ?? 0,
         },
         newCreatorsThisMonth,
+        brandOrders: {
+          totalGMV: brandOrderStats._sum.orderValue ?? 0,
+          totalOrders: brandOrderStats._count.id,
+        },
       },
     });
   } catch (error) {

@@ -112,6 +112,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         ...(validatedData.contactPhone !== undefined && {
           contactPhone: validatedData.contactPhone || null,
         }),
+        ...(validatedData.commissionRate !== undefined && {
+          commissionRate: validatedData.commissionRate ?? null,
+        }),
+        ...(validatedData.websiteUrl !== undefined && {
+          websiteUrl: validatedData.websiteUrl || null,
+        }),
         ...(validatedData.isActive !== undefined && { isActive: validatedData.isActive }),
       },
       include: { _count: { select: { products: true } } },

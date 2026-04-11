@@ -48,6 +48,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { PageLottie } from '@/components/ui/page-lottie';
+import { TablePagination, PAGE_SIZE, type PaginationData } from '@/components/ui/table-pagination';
 
 // =============================================================================
 // Types
@@ -129,6 +130,8 @@ export default function AdminEarningsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [creatorFilter, setCreatorFilter] = useState('ALL');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationData | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -150,7 +153,10 @@ export default function AdminEarningsPage() {
   const fetchEarnings = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ limit: '100' });
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        page: String(page),
+      });
       if (statusFilter !== 'ALL') params.set('status', statusFilter);
       if (creatorFilter !== 'ALL') params.set('creatorId', creatorFilter);
 
@@ -158,13 +164,14 @@ export default function AdminEarningsPage() {
       if (!res.ok) throw new Error('Failed to fetch earnings');
       const json = await res.json();
       setEarnings(json.data);
+      setPagination(json.pagination);
     } catch (err) {
       console.error('[AdminEarnings] fetch error:', err);
       toast.error('Failed to load earnings');
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, creatorFilter]);
+  }, [statusFilter, creatorFilter, page]);
 
   const fetchCreators = useCallback(async () => {
     try {
@@ -430,7 +437,7 @@ export default function AdminEarningsPage() {
         <CardHeader>
           <CardTitle>All Earnings</CardTitle>
           <CardDescription>
-            {earnings.length} earning{earnings.length !== 1 ? 's' : ''} found
+            {pagination?.total ?? earnings.length} earning{(pagination?.total ?? earnings.length) !== 1 ? 's' : ''} found
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -440,7 +447,7 @@ export default function AdminEarningsPage() {
               <span className="text-sm font-medium text-muted-foreground">Status:</span>
               <Select
                 value={statusFilter}
-                onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+                onValueChange={(v) => { setStatusFilter(v as StatusFilter); setPage(1); }}
               >
                 <SelectTrigger className="w-[150px]">
                   <SelectValue />
@@ -459,7 +466,7 @@ export default function AdminEarningsPage() {
               <span className="text-sm font-medium text-muted-foreground">Creator:</span>
               <Select
                 value={creatorFilter}
-                onValueChange={setCreatorFilter}
+                onValueChange={(v) => { setCreatorFilter(v); setPage(1); }}
               >
                 <SelectTrigger className="w-[200px]">
                   <SelectValue />
@@ -554,6 +561,16 @@ export default function AdminEarningsPage() {
                 </TableBody>
               </Table>
             </div>
+          )}
+
+          {/* Pagination */}
+          {pagination && (
+            <TablePagination
+              pagination={pagination}
+              label="earnings"
+              onPreviousPage={() => setPage((p) => Math.max(1, p - 1))}
+              onNextPage={() => setPage((p) => p + 1)}
+            />
           )}
         </CardContent>
       </Card>
