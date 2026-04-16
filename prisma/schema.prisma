@@ -409,6 +409,13 @@ model BrandIntegration {
   jwtTokenEnc    String?   @db.Text
   tokenExpiresAt DateTime?
 
+  // Shopify storefront (for product URL mapping)
+  shopifyTokenEnc      String?  @db.Text // AES-256-GCM encrypted Shopify Admin API access token
+  shopifyDomain        String?           // e.g. "i-z-f.myshopify.com"
+  shopifyClientId      String?           // Client ID for token refresh
+  shopifyClientSecEnc  String?  @db.Text // AES-256-GCM encrypted Client Secret
+  shopifyTokenExpiry   DateTime?         // Token expiry (24h)
+
   // Sync state
   lastProductSync   DateTime?
   lastInventorySync DateTime?

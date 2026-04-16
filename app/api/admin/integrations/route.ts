@@ -45,6 +45,9 @@ export async function GET() {
         lastInventorySync: true,
         lastOrderSync: true,
         tokenExpiresAt: true,
+        shopifyDomain: true,
+        shopifyClientId: true,
+        shopifyTokenEnc: true,
         createdAt: true,
         updatedAt: true,
         brand: {
@@ -59,7 +62,14 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json({ data: integrations });
+    // Never return encrypted tokens — just boolean flags
+    const data = integrations.map(({ shopifyTokenEnc, shopifyClientId, ...rest }) => ({
+      ...rest,
+      hasShopifyToken: !!shopifyTokenEnc,
+      hasShopifyCredentials: !!(rest.shopifyDomain && shopifyClientId),
+    }));
+
+    return NextResponse.json({ data });
   } catch (error) {
     console.error('[API] GET /api/admin/integrations error:', error);
     return NextResponse.json(
@@ -109,6 +119,15 @@ export async function POST(request: NextRequest) {
         emailEnc: encrypt(validatedData.email),
         passwordEnc: encrypt(validatedData.password),
         locationKey: validatedData.locationKey,
+        ...(validatedData.shopifyDomain && {
+          shopifyDomain: validatedData.shopifyDomain,
+        }),
+        ...(validatedData.shopifyClientId && {
+          shopifyClientId: validatedData.shopifyClientId,
+        }),
+        ...(validatedData.shopifyClientSecret && {
+          shopifyClientSecEnc: encrypt(validatedData.shopifyClientSecret),
+        }),
       },
       select: {
         id: true,

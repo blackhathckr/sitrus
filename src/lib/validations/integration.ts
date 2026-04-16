@@ -18,6 +18,9 @@ export const createIntegrationSchema = z.object({
   email: z.string().email('Valid email is required'),
   password: z.string().min(1, 'Password is required'),
   locationKey: z.string().min(1, 'Location key is required'),
+  shopifyDomain: z.string().min(1).optional(),
+  shopifyClientId: z.string().min(1).optional(),
+  shopifyClientSecret: z.string().min(1).optional(),
 });
 
 export type CreateIntegrationInput = z.infer<typeof createIntegrationSchema>;
@@ -31,6 +34,9 @@ export const updateIntegrationSchema = z.object({
   password: z.string().min(1).optional(),
   locationKey: z.string().min(1).optional(),
   syncEnabled: z.boolean().optional(),
+  shopifyDomain: z.string().min(1).optional(),
+  shopifyClientId: z.string().min(1).optional(),
+  shopifyClientSecret: z.string().min(1).optional(),
 });
 
 export type UpdateIntegrationInput = z.infer<typeof updateIntegrationSchema>;

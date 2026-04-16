@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
+  Globe,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -74,6 +75,9 @@ interface Integration {
   lastInventorySync: string | null;
   lastOrderSync: string | null;
   tokenExpiresAt: string | null;
+  shopifyDomain: string | null;
+  hasShopifyToken: boolean;
+  hasShopifyCredentials: boolean;
   createdAt: string;
   brand: {
     id: string;
@@ -96,6 +100,9 @@ interface IntegrationForm {
   email: string;
   password: string;
   locationKey: string;
+  shopifyDomain: string;
+  shopifyClientId: string;
+  shopifyClientSecret: string;
 }
 
 const EMPTY_FORM: IntegrationForm = {
@@ -105,6 +112,9 @@ const EMPTY_FORM: IntegrationForm = {
   email: '',
   password: '',
   locationKey: '',
+  shopifyDomain: '',
+  shopifyClientId: '',
+  shopifyClientSecret: '',
 };
 
 // =============================================================================
@@ -142,6 +152,7 @@ export default function AdminIntegrationsPage() {
   const [syncingProduct, setSyncingProduct] = useState<string | null>(null);
   const [syncingInventory, setSyncingInventory] = useState<string | null>(null);
   const [syncingOrders, setSyncingOrders] = useState<string | null>(null);
+  const [syncingUrls, setSyncingUrls] = useState<string | null>(null);
 
   // ---- Data fetching -------------------------------------------------------
 
@@ -244,6 +255,28 @@ export default function AdminIntegrationsPage() {
       toast.error(err instanceof Error ? err.message : 'Order sync failed');
     } finally {
       setSyncingOrders(null);
+    }
+  }
+
+  async function handleMapUrls(brandId: string) {
+    setSyncingUrls(brandId);
+    try {
+      const res = await fetch(`/api/admin/integrations/${brandId}/map-shopify-urls`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || 'URL mapping failed');
+      }
+      const json = await res.json();
+      toast.success(
+        `URL mapping complete: ${json.data.matched} matched, ${json.data.updated} updated, ${json.data.unmatched} unmatched (${(json.data.durationMs / 1000).toFixed(1)}s)`
+      );
+      await fetchIntegrations();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'URL mapping failed');
+    } finally {
+      setSyncingUrls(null);
     }
   }
 
@@ -476,6 +509,40 @@ export default function AdminIntegrationsPage() {
                         </Button>
                       </TableCell>
                     </TableRow>
+
+                    {/* Shopify URL Mapping */}
+                    {integration.hasShopifyCredentials && (
+                      <TableRow>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Globe className="size-4 text-muted-foreground" />
+                            <span className="font-medium">Product URLs</span>
+                            <Badge variant="secondary" className="text-xs">Shopify</Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm text-muted-foreground">
+                            {integration.shopifyDomain || 'Connected'}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => handleMapUrls(integration.brandId)}
+                            disabled={syncingUrls === integration.brandId}
+                          >
+                            {syncingUrls === integration.brandId ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="size-3.5" />
+                            )}
+                            Map URLs
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -492,7 +559,7 @@ export default function AdminIntegrationsPage() {
           if (!open) setForm(EMPTY_FORM);
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Connect Brand to EasyEcom</DialogTitle>
             <DialogDescription>
@@ -563,6 +630,46 @@ export default function AdminIntegrationsPage() {
                 onChange={(e) => setForm((prev) => ({ ...prev, locationKey: e.target.value }))}
                 className="font-mono text-sm"
               />
+            </div>
+
+            <div className="border-t pt-4 mt-2">
+              <p className="text-sm font-medium mb-3">Shopify Storefront (Optional)</p>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="int-shopify-domain">Shopify Domain</Label>
+                  <Input
+                    id="int-shopify-domain"
+                    placeholder="your-store.myshopify.com"
+                    value={form.shopifyDomain}
+                    onChange={(e) => setForm((prev) => ({ ...prev, shopifyDomain: e.target.value }))}
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="int-shopify-client-id">Client ID</Label>
+                    <Input
+                      id="int-shopify-client-id"
+                      placeholder="e.g. edd52ee0d8d2..."
+                      value={form.shopifyClientId}
+                      onChange={(e) => setForm((prev) => ({ ...prev, shopifyClientId: e.target.value }))}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="int-shopify-secret">Client Secret</Label>
+                    <Input
+                      id="int-shopify-secret"
+                      type="password"
+                      placeholder="shpss_..."
+                      value={form.shopifyClientSecret}
+                      onChange={(e) => setForm((prev) => ({ ...prev, shopifyClientSecret: e.target.value }))}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">Used for mapping product URLs. Tokens auto-refresh every 24h. Get from Shopify Partners → Apps → Client credentials.</p>
             </div>
 
             <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-400">
