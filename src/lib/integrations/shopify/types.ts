@@ -11,6 +11,7 @@ export interface ShopifyVariant {
   sku: string | null;
   inventory_quantity: number;
   price: string;
+  compare_at_price: string | null;
 }
 
 export interface ShopifyProduct {

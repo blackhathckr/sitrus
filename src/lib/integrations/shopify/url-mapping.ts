@@ -50,13 +50,19 @@ export async function mapShopifyUrls(brandId: string): Promise<UrlMappingResult>
   const client = await createShopifyClient(brandId);
   const shopifyProducts = await client.getAllProducts();
 
-  // Build SKU → product URL map from Shopify variants
-  const skuToUrl = new Map<string, string>();
+  // Build SKU → { url, price, originalPrice } map from Shopify variants
+  const skuData = new Map<string, { url: string; price: number; originalPrice: number | null }>();
   for (const product of shopifyProducts) {
     const productUrl = `${baseUrl}/products/${product.handle}`;
     for (const variant of product.variants) {
       if (variant.sku) {
-        skuToUrl.set(variant.sku.trim().toUpperCase(), productUrl);
+        const price = parseFloat(variant.price) || 0;
+        const compareAt = variant.compare_at_price ? parseFloat(variant.compare_at_price) : null;
+        skuData.set(variant.sku.trim().toUpperCase(), {
+          url: productUrl,
+          price,
+          originalPrice: compareAt && compareAt > price ? compareAt : null,
+        });
       }
     }
   }
@@ -64,7 +70,7 @@ export async function mapShopifyUrls(brandId: string): Promise<UrlMappingResult>
   // Fetch all Sitrus products for this brand with easyecomSku
   const sitrusProducts = await prisma.product.findMany({
     where: { brandId, easyecomSku: { not: null } },
-    select: { id: true, easyecomSku: true, sourceUrl: true },
+    select: { id: true, easyecomSku: true, sourceUrl: true, price: true, originalPrice: true },
   });
 
   // Match and update in chunks
@@ -75,15 +81,19 @@ export async function mapShopifyUrls(brandId: string): Promise<UrlMappingResult>
     const updatePromises = chunk.map(async (product) => {
       try {
         const normalizedSku = product.easyecomSku!.trim().toUpperCase();
-        const shopifyUrl = skuToUrl.get(normalizedSku);
+        const shopify = skuData.get(normalizedSku);
 
-        if (shopifyUrl) {
+        if (shopify) {
           matched++;
-          // Only update if URL is different
-          if (product.sourceUrl !== shopifyUrl) {
+          const updates: Record<string, unknown> = {};
+          if (product.sourceUrl !== shopify.url) updates.sourceUrl = shopify.url;
+          if (shopify.price > 0 && product.price !== shopify.price) updates.price = shopify.price;
+          if (shopify.originalPrice && product.originalPrice !== shopify.originalPrice) updates.originalPrice = shopify.originalPrice;
+
+          if (Object.keys(updates).length > 0) {
             await prisma.product.update({
               where: { id: product.id },
-              data: { sourceUrl: shopifyUrl },
+              data: updates,
             });
             updated++;
           }
