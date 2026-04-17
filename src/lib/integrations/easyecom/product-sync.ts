@@ -38,7 +38,7 @@ function mapEasyEcomProduct(
     price: product.mrp ?? product.cost ?? 0,
     originalPrice: product.cost > 0 ? product.cost : null,
     currency: 'INR',
-    sourceUrl: websiteUrl || null,
+    sourceUrl: websiteUrl || '',
     marketplace: null,
     category: product.category_name || 'Uncategorized',
     brand: product.brand || null,

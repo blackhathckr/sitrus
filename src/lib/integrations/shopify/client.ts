@@ -150,6 +150,64 @@ export class ShopifyClient {
   }
 
   /**
+   * Register webhook subscriptions for order events.
+   * Idempotent — checks existing webhooks and only creates missing ones.
+   */
+  async registerWebhooks(baseUrl: string): Promise<{ created: string[]; existing: string[] }> {
+    const topics = ['orders/create', 'orders/updated'];
+    const created: string[] = [];
+    const existing: string[] = [];
+
+    // Get existing webhooks
+    const listRes = await this.fetchWithRetry(
+      `https://${this.domain}/admin/api/${API_VERSION}/webhooks.json?fields=id,topic,address`
+    );
+    const listData = await listRes.json();
+    const currentWebhooks: { id: number; topic: string; address: string }[] = listData.webhooks || [];
+
+    const webhookUrl = `${baseUrl}/api/webhooks/shopify`;
+
+    for (const topic of topics) {
+      const alreadyRegistered = currentWebhooks.find(
+        (w) => w.topic === topic && w.address === webhookUrl
+      );
+
+      if (alreadyRegistered) {
+        existing.push(topic);
+        continue;
+      }
+
+      const token = await this.getToken();
+      const res = await fetch(
+        `https://${this.domain}/admin/api/${API_VERSION}/webhooks.json`,
+        {
+          method: 'POST',
+          headers: {
+            'X-Shopify-Access-Token': token,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            webhook: {
+              topic,
+              address: webhookUrl,
+              format: 'json',
+            },
+          }),
+        }
+      );
+
+      if (res.ok) {
+        created.push(topic);
+      } else {
+        const text = await res.text();
+        console.error(`[Shopify] Failed to register webhook ${topic}: ${res.status} ${text}`);
+      }
+    }
+
+    return { created, existing };
+  }
+
+  /**
    * Fetch orders from Shopify within a date range, with Link header pagination.
    */
   async getOrders(sinceDate: string): Promise<ShopifyOrder[]> {

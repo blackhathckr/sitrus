@@ -6,3 +6,8 @@
 .claude
 
 docs
+.vercel
+cmd.txt
+test-*.json
+test-*.ts
+tsconfig.tsbuildinfo

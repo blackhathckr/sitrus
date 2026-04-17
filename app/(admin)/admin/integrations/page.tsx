@@ -154,6 +154,7 @@ export default function AdminIntegrationsPage() {
   const [syncingOrders, setSyncingOrders] = useState<string | null>(null);
   const [syncingUrls, setSyncingUrls] = useState<string | null>(null);
   const [syncingShopifyOrders, setSyncingShopifyOrders] = useState<string | null>(null);
+  const [registeringWebhooks, setRegisteringWebhooks] = useState<string | null>(null);
 
   // ---- Data fetching -------------------------------------------------------
 
@@ -293,13 +294,37 @@ export default function AdminIntegrationsPage() {
       }
       const json = await res.json();
       toast.success(
-        `Shopify orders synced: ${json.data.created} new, ${json.data.attributed} attributed, ${json.data.skipped} skipped (${(json.data.durationMs / 1000).toFixed(1)}s)`
+        `Shopify orders synced: ${json.data.created} new, ${json.data.updated} updated, ${json.data.attributed} attributed (${(json.data.durationMs / 1000).toFixed(1)}s)`
       );
       await fetchIntegrations();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Shopify order sync failed');
     } finally {
       setSyncingShopifyOrders(null);
+    }
+  }
+
+  async function handleRegisterWebhooks(brandId: string) {
+    setRegisteringWebhooks(brandId);
+    try {
+      const res = await fetch(`/api/admin/integrations/${brandId}/register-shopify-webhooks`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || 'Webhook registration failed');
+      }
+      const json = await res.json();
+      const { created, existing } = json.data;
+      if (created.length > 0) {
+        toast.success(`Webhooks registered: ${created.join(', ')}`);
+      } else {
+        toast.info(`Webhooks already active: ${existing.join(', ')}`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Webhook registration failed');
+    } finally {
+      setRegisteringWebhooks(null);
     }
   }
 
@@ -583,20 +608,36 @@ export default function AdminIntegrationsPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1.5"
-                            onClick={() => handleSyncShopifyOrders(integration.brandId)}
-                            disabled={syncingShopifyOrders === integration.brandId}
-                          >
-                            {syncingShopifyOrders === integration.brandId ? (
-                              <Loader2 className="size-3.5 animate-spin" />
-                            ) : (
-                              <RefreshCw className="size-3.5" />
-                            )}
-                            Sync Orders
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5"
+                              onClick={() => handleRegisterWebhooks(integration.brandId)}
+                              disabled={registeringWebhooks === integration.brandId}
+                            >
+                              {registeringWebhooks === integration.brandId ? (
+                                <Loader2 className="size-3.5 animate-spin" />
+                              ) : (
+                                <Globe className="size-3.5" />
+                              )}
+                              Webhooks
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5"
+                              onClick={() => handleSyncShopifyOrders(integration.brandId)}
+                              disabled={syncingShopifyOrders === integration.brandId}
+                            >
+                              {syncingShopifyOrders === integration.brandId ? (
+                                <Loader2 className="size-3.5 animate-spin" />
+                              ) : (
+                                <RefreshCw className="size-3.5" />
+                              )}
+                              Sync Orders
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )}

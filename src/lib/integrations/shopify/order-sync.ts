@@ -2,7 +2,7 @@
  * Shopify Order Sync & Attribution Service
  *
  * Fetches orders from Shopify, extracts UTM params from landing_site,
- * and creates attributed BrandOrders in Sitrus.
+ * and creates/updates attributed BrandOrders in Sitrus.
  *
  * Attribution flow:
  * 1. Creator shares SitLink → customer clicks → redirects to Shopify with UTM params
@@ -13,12 +13,14 @@
  */
 
 import { prisma } from '@/lib/db/prisma';
+import { EarningStatus } from '@prisma/client';
 import { createShopifyClient } from './client';
 import type { ShopifyOrder } from './types';
 
 export interface ShopifyOrderSyncResult {
   totalFetched: number;
   created: number;
+  updated: number;
   attributed: number;
   skipped: number;
   earningsCreated: number;
@@ -71,6 +73,7 @@ function formatPeriod(date: Date): string {
 /**
  * Sync orders from Shopify for a given brand.
  * Only processes orders with utm_source=sitrus (came through SitLinks).
+ * Updates existing orders if status has changed and reconciles earnings.
  */
 export async function syncShopifyOrders(
   brandId: string,
@@ -78,6 +81,7 @@ export async function syncShopifyOrders(
 ): Promise<ShopifyOrderSyncResult> {
   const startTime = Date.now();
   let created = 0;
+  let updated = 0;
   let attributed = 0;
   let skipped = 0;
   let earningsCreated = 0;
@@ -100,17 +104,7 @@ export async function syncShopifyOrders(
   for (const order of shopifyOrders) {
     try {
       const shopifyOrderId = String(order.id);
-
-      // Check if already synced (use shopify order ID prefixed to avoid collision with easyecom IDs)
-      const existingOrder = await prisma.brandOrder.findFirst({
-        where: { easyecomOrderId: `shopify_${shopifyOrderId}` },
-        select: { id: true },
-      });
-
-      if (existingOrder) {
-        skipped++;
-        continue;
-      }
+      const externalId = `shopify_${shopifyOrderId}`;
 
       // Extract UTM from landing_site
       const utm = extractUtmFromLandingSite(order.landing_site);
@@ -118,6 +112,53 @@ export async function syncShopifyOrders(
       // Only process orders that came through Sitrus
       if (utm.utmSource !== 'sitrus') {
         skipped++;
+        continue;
+      }
+
+      const status = mapShopifyStatus(order);
+      const orderValue = parseFloat(order.total_price) || 0;
+
+      // Check if already synced
+      const existingOrder = await prisma.brandOrder.findFirst({
+        where: { easyecomOrderId: externalId },
+        select: { id: true, status: true, creatorId: true },
+      });
+
+      if (existingOrder) {
+        // Update if status changed
+        if (existingOrder.status !== status) {
+          await prisma.brandOrder.update({
+            where: { id: existingOrder.id },
+            data: {
+              status,
+              fulfilledAt: status === 'delivered' ? new Date() : undefined,
+            },
+          });
+          updated++;
+
+          // Reconcile earnings: update earning status when order status changes
+          if (existingOrder.creatorId) {
+            const earning = await prisma.earning.findFirst({
+              where: { description: { contains: externalId.replace('shopify_', '') } },
+              select: { id: true, status: true },
+            });
+
+            if (earning) {
+              let newEarningStatus: EarningStatus | null = null;
+              if (status === 'delivered' && earning.status === EarningStatus.PENDING) newEarningStatus = EarningStatus.CONFIRMED;
+              else if (status === 'cancelled' && earning.status !== EarningStatus.PAID) newEarningStatus = EarningStatus.CANCELLED;
+
+              if (newEarningStatus) {
+                await prisma.earning.update({
+                  where: { id: earning.id },
+                  data: { status: newEarningStatus },
+                });
+              }
+            }
+          }
+        } else {
+          skipped++;
+        }
         continue;
       }
 
@@ -147,8 +188,6 @@ export async function syncShopifyOrders(
 
       if (creatorId) attributed++;
 
-      const status = mapShopifyStatus(order);
-      const orderValue = parseFloat(order.total_price) || 0;
       const customerName = order.customer
         ? [order.customer.first_name, order.customer.last_name].filter(Boolean).join(' ')
         : null;
@@ -156,7 +195,7 @@ export async function syncShopifyOrders(
       const brandOrder = await prisma.brandOrder.create({
         data: {
           brandId,
-          easyecomOrderId: `shopify_${shopifyOrderId}`,
+          easyecomOrderId: externalId,
           creatorId,
           linkId,
           utmSource: utm.utmSource,
@@ -206,9 +245,16 @@ export async function syncShopifyOrders(
     }
   }
 
+  // Update sync timestamp
+  await prisma.brandIntegration.update({
+    where: { brandId },
+    data: { lastOrderSync: new Date() },
+  });
+
   return {
     totalFetched,
     created,
+    updated,
     attributed,
     skipped,
     earningsCreated,
