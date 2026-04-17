@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
     // Check if order already exists
     const existing = await prisma.brandOrder.findFirst({
       where: { easyecomOrderId: externalId },
-      select: { id: true, status: true, creatorId: true, orderNumber: true },
+      select: { id: true, status: true, creatorId: true, linkId: true, orderNumber: true },
     });
 
     if (existing) {
@@ -185,6 +185,7 @@ export async function POST(request: NextRequest) {
           });
 
           if (earning) {
+            // Update existing earning status
             let newEarningStatus: EarningStatus | null = null;
             if (status === 'delivered' && earning.status === EarningStatus.PENDING) newEarningStatus = EarningStatus.CONFIRMED;
             if (status === 'cancelled' && earning.status !== EarningStatus.PAID) newEarningStatus = EarningStatus.CANCELLED;
@@ -193,6 +194,25 @@ export async function POST(request: NextRequest) {
               await prisma.earning.update({
                 where: { id: earning.id },
                 data: { status: newEarningStatus },
+              });
+            }
+          } else if (['confirmed', 'dispatched', 'delivered'].includes(status)) {
+            // No earning exists yet (order arrived as "placed") — create one now
+            const brand = await prisma.brand.findUnique({
+              where: { id: brandId },
+              select: { commissionRate: true },
+            });
+
+            if (brand?.commissionRate) {
+              await prisma.earning.create({
+                data: {
+                  creatorId: existing.creatorId,
+                  linkId: existing.linkId,
+                  amount: orderValue * (brand.commissionRate / 100),
+                  status: status === 'delivered' ? EarningStatus.CONFIRMED : EarningStatus.PENDING,
+                  period: formatPeriod(new Date()),
+                  description: `Brand order #${existing.orderNumber}`,
+                },
               });
             }
           }

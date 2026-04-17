@@ -141,7 +141,7 @@ export async function syncShopifyOrders(
       // Check if already synced
       const existingOrder = await prisma.brandOrder.findFirst({
         where: { easyecomOrderId: externalId },
-        select: { id: true, status: true, creatorId: true },
+        select: { id: true, status: true, creatorId: true, linkId: true, orderNumber: true },
       });
 
       if (existingOrder) {
@@ -157,9 +157,9 @@ export async function syncShopifyOrders(
           updated++;
 
           // Reconcile earnings: update earning status when order status changes
-          if (existingOrder.creatorId) {
+          if (existingOrder.creatorId && existingOrder.orderNumber) {
             const earning = await prisma.earning.findFirst({
-              where: { description: { contains: externalId.replace('shopify_', '') } },
+              where: { description: { contains: existingOrder.orderNumber } },
               select: { id: true, status: true },
             });
 
@@ -173,6 +173,21 @@ export async function syncShopifyOrders(
                   where: { id: earning.id },
                   data: { status: newEarningStatus },
                 });
+              }
+            } else if (['confirmed', 'dispatched', 'delivered'].includes(status)) {
+              // No earning exists yet (order arrived as "placed") — create one now
+              if (brand.commissionRate) {
+                await prisma.earning.create({
+                  data: {
+                    creatorId: existingOrder.creatorId,
+                    linkId: existingOrder.linkId,
+                    amount: orderValue * (brand.commissionRate / 100),
+                    status: status === 'delivered' ? EarningStatus.CONFIRMED : EarningStatus.PENDING,
+                    period: formatPeriod(new Date(order.created_at)),
+                    description: `Brand order #${existingOrder.orderNumber}`,
+                  },
+                });
+                earningsCreated++;
               }
             }
           }
