@@ -125,7 +125,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       },
       select: {
         id: true,
+        shortCode: true,
         affiliateUrl: true,
+        creator: {
+          select: {
+            creatorProfile: {
+              select: { slug: true },
+            },
+          },
+        },
       },
     });
 
@@ -172,8 +180,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }),
     ]);
 
-    // 302 redirect to the affiliate URL
-    return NextResponse.redirect(link.affiliateUrl, { status: 302 });
+    // Build redirect URL with UTM params for attribution
+    const redirectUrl = new URL(link.affiliateUrl);
+    redirectUrl.searchParams.set('utm_source', 'sitrus');
+    redirectUrl.searchParams.set('utm_medium', 'sitlink');
+    if (link.creator?.creatorProfile?.slug) {
+      redirectUrl.searchParams.set('utm_campaign', link.creator.creatorProfile.slug);
+    }
+    redirectUrl.searchParams.set('utm_content', link.shortCode);
+
+    // 302 redirect to the affiliate URL with UTM tracking
+    return NextResponse.redirect(redirectUrl.toString(), { status: 302 });
   } catch (error) {
     console.error('Error processing redirect:', error);
 
