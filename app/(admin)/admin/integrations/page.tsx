@@ -153,6 +153,7 @@ export default function AdminIntegrationsPage() {
   const [syncingInventory, setSyncingInventory] = useState<string | null>(null);
   const [syncingOrders, setSyncingOrders] = useState<string | null>(null);
   const [syncingUrls, setSyncingUrls] = useState<string | null>(null);
+  const [syncingShopifyOrders, setSyncingShopifyOrders] = useState<string | null>(null);
 
   // ---- Data fetching -------------------------------------------------------
 
@@ -277,6 +278,28 @@ export default function AdminIntegrationsPage() {
       toast.error(err instanceof Error ? err.message : 'URL mapping failed');
     } finally {
       setSyncingUrls(null);
+    }
+  }
+
+  async function handleSyncShopifyOrders(brandId: string) {
+    setSyncingShopifyOrders(brandId);
+    try {
+      const res = await fetch(`/api/admin/integrations/${brandId}/sync-shopify-orders`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || 'Shopify order sync failed');
+      }
+      const json = await res.json();
+      toast.success(
+        `Shopify orders synced: ${json.data.created} new, ${json.data.attributed} attributed, ${json.data.skipped} skipped (${(json.data.durationMs / 1000).toFixed(1)}s)`
+      );
+      await fetchIntegrations();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Shopify order sync failed');
+    } finally {
+      setSyncingShopifyOrders(null);
     }
   }
 
@@ -539,6 +562,40 @@ export default function AdminIntegrationsPage() {
                               <RefreshCw className="size-3.5" />
                             )}
                             Map URLs
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )}
+
+                    {/* Shopify Order Sync */}
+                    {integration.hasShopifyCredentials && (
+                      <TableRow>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <ShoppingCart className="size-4 text-muted-foreground" />
+                            <span className="font-medium">Shopify Orders</span>
+                            <Badge variant="secondary" className="text-xs">Attribution</Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm text-muted-foreground">
+                            SitLink UTM tracking
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => handleSyncShopifyOrders(integration.brandId)}
+                            disabled={syncingShopifyOrders === integration.brandId}
+                          >
+                            {syncingShopifyOrders === integration.brandId ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="size-3.5" />
+                            )}
+                            Sync Orders
                           </Button>
                         </TableCell>
                       </TableRow>

@@ -9,7 +9,7 @@
 
 import { decrypt, encrypt } from '@/lib/crypto/encryption';
 import { prisma } from '@/lib/db/prisma';
-import type { ShopifyProduct, ShopifyProductsResponse } from './types';
+import type { ShopifyProduct, ShopifyProductsResponse, ShopifyOrder, ShopifyOrdersResponse } from './types';
 
 const API_VERSION = '2024-01';
 const MAX_PER_PAGE = 250;
@@ -147,6 +147,31 @@ export class ShopifyClient {
     }
 
     return allProducts;
+  }
+
+  /**
+   * Fetch orders from Shopify within a date range, with Link header pagination.
+   */
+  async getOrders(sinceDate: string): Promise<ShopifyOrder[]> {
+    const allOrders: ShopifyOrder[] = [];
+    let url: string | null = `https://${this.domain}/admin/api/${API_VERSION}/orders.json?status=any&limit=${MAX_PER_PAGE}&created_at_min=${encodeURIComponent(sinceDate)}&fields=id,name,order_number,created_at,financial_status,fulfillment_status,total_price,subtotal_price,total_discounts,landing_site,referring_site,source_name,discount_codes,note_attributes,customer,line_items,cancelled_at,tags`;
+
+    while (url) {
+      const response = await this.fetchWithRetry(url);
+      const data: ShopifyOrdersResponse = await response.json();
+      allOrders.push(...data.orders);
+
+      const linkHeader = response.headers.get('Link') || response.headers.get('link');
+      url = null;
+      if (linkHeader) {
+        const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+        if (nextMatch) {
+          url = nextMatch[1];
+        }
+      }
+    }
+
+    return allOrders;
   }
 }
 
