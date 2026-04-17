@@ -131,9 +131,11 @@ export interface EasyEcomOrder {
 }
 
 export interface EasyEcomOrderResponse {
-  data: EasyEcomOrder[];
+  data: {
+    orders: EasyEcomOrder[];
+    nextUrl?: string | null;
+  };
   message: string | null;
-  nextUrl?: string | null;
 }
 
 export interface EasyEcomOrderDetailResponse {

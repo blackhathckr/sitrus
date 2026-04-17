@@ -353,10 +353,11 @@ export class EasyEcomClient {
 
       isFirstPage = false;
 
-      if (!result.data || !Array.isArray(result.data) || result.data.length === 0) break;
+      const orders = result.data?.orders;
+      if (!orders || !Array.isArray(orders) || orders.length === 0) break;
 
-      allOrders.push(...result.data);
-      nextUrl = result.nextUrl || null;
+      allOrders.push(...orders);
+      nextUrl = result.data.nextUrl || null;
     }
 
     return allOrders;
