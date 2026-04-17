@@ -134,7 +134,25 @@ export async function syncOrders(
   if (!brand) throw new Error(`Brand ${brandId} not found`);
 
   const client = await createEasyEcomClient(brandId);
-  const orders = await client.getOrders(from, to);
+
+  // EasyEcom limits date range to 7 days — split into 7-day windows
+  const allOrders: EasyEcomOrder[] = [];
+  const startDate = new Date(from);
+  const endDate = new Date(to);
+  const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+
+  let windowStart = startDate;
+  while (windowStart < endDate) {
+    const windowEnd = new Date(Math.min(windowStart.getTime() + SEVEN_DAYS, endDate.getTime()));
+    const windowOrders = await client.getOrders(
+      windowStart.toISOString().split('T')[0],
+      windowEnd.toISOString().split('T')[0]
+    );
+    allOrders.push(...windowOrders);
+    windowStart = windowEnd;
+  }
+
+  const orders = allOrders;
   const totalFetched = orders.length;
 
   for (const eeOrder of orders) {
