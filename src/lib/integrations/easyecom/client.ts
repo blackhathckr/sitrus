@@ -353,7 +353,7 @@ export class EasyEcomClient {
 
       isFirstPage = false;
 
-      if (!result.data || result.data.length === 0) break;
+      if (!result.data || !Array.isArray(result.data) || result.data.length === 0) break;
 
       allOrders.push(...result.data);
       nextUrl = result.nextUrl || null;
