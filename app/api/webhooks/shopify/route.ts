@@ -66,27 +66,48 @@ function mapShopifyStatus(order: ShopifyOrder): string {
 }
 
 /**
- * Extract UTM params from Shopify order's landing_site URL.
+ * Extract UTM params from a Shopify order.
+ * Checks landing_site first, then note_attributes (used by GoKwik and other checkout services).
  */
-function extractUtmFromLandingSite(landingSite: string | null): {
+function extractUtmParams(order: ShopifyOrder): {
   utmSource: string | null;
   utmMedium: string | null;
   utmCampaign: string | null;
   utmContent: string | null;
 } {
-  if (!landingSite) return { utmSource: null, utmMedium: null, utmCampaign: null, utmContent: null };
+  const empty = { utmSource: null, utmMedium: null, utmCampaign: null, utmContent: null };
 
-  try {
-    const url = new URL(landingSite, 'https://placeholder.com');
-    return {
-      utmSource: url.searchParams.get('utm_source'),
-      utmMedium: url.searchParams.get('utm_medium'),
-      utmCampaign: url.searchParams.get('utm_campaign'),
-      utmContent: url.searchParams.get('utm_content'),
-    };
-  } catch {
-    return { utmSource: null, utmMedium: null, utmCampaign: null, utmContent: null };
+  // Try landing_site first
+  if (order.landing_site) {
+    try {
+      const url = new URL(order.landing_site, 'https://placeholder.com');
+      const utmSource = url.searchParams.get('utm_source');
+      if (utmSource) {
+        return {
+          utmSource,
+          utmMedium: url.searchParams.get('utm_medium'),
+          utmCampaign: url.searchParams.get('utm_campaign'),
+          utmContent: url.searchParams.get('utm_content'),
+        };
+      }
+    } catch { /* fall through */ }
   }
+
+  // Fallback: check note_attributes (GoKwik, custom checkouts store UTM here)
+  if (order.note_attributes && order.note_attributes.length > 0) {
+    const attrs = new Map(order.note_attributes.map((a) => [a.name, a.value]));
+    const utmSource = attrs.get('utm_source') || null;
+    if (utmSource) {
+      return {
+        utmSource,
+        utmMedium: attrs.get('utm_medium') || null,
+        utmCampaign: attrs.get('utm_campaign') || null,
+        utmContent: attrs.get('utm_content') || null,
+      };
+    }
+  }
+
+  return empty;
 }
 
 function formatPeriod(date: Date): string {
@@ -115,7 +136,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: 'ok', event: 'ignored' });
     }
 
-    const utm = extractUtmFromLandingSite(order.landing_site);
+    const utm = extractUtmParams(order);
 
     // Only process orders that came through Sitrus
     if (utm.utmSource !== 'sitrus') {
