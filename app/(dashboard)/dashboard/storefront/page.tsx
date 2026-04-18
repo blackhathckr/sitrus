@@ -13,7 +13,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Copy, Plus, Globe, Lock, ExternalLink, Loader2, Trash2, Package, X } from 'lucide-react';
+import { Copy, Plus, Globe, Lock, ExternalLink, Loader2, Trash2, Package, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -149,6 +149,11 @@ export default function StorefrontPage() {
   const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [productSearch, setProductSearch] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [productPage, setProductPage] = useState(1);
+  const [hasMoreProducts, setHasMoreProducts] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // ---- Data fetching -------------------------------------------------------
 
@@ -291,31 +296,62 @@ export default function StorefrontPage() {
    * Opens the manage-products dialog for a collection.
    * Fetches collection products and all available products.
    */
-  const handleManageProducts = useCallback(async (collectionId: string) => {
-    setManageCollectionId(collectionId);
-    setManageDialogOpen(true);
-    setIsLoadingProducts(true);
+  const fetchProducts = useCallback(async (search: string, page: number, append: boolean) => {
+    if (page === 1 && !append) setIsSearching(true);
+    else setIsLoadingMore(true);
 
     try {
-      const [colRes, prodRes] = await Promise.all([
-        fetch(`/api/collections/${collectionId}`),
-        fetch('/api/products?limit=100&status=ACTIVE'),
-      ]);
-
-      if (colRes.ok) {
-        const colJson = await colRes.json();
-        setCollectionProducts(colJson.data?.products ?? []);
-      }
-      if (prodRes.ok) {
-        const prodJson = await prodRes.json();
-        setAvailableProducts(prodJson.data ?? []);
+      const params = new URLSearchParams({ limit: '20', page: String(page) });
+      if (search.trim()) params.set('search', search.trim());
+      const res = await fetch(`/api/products?${params}`);
+      if (res.ok) {
+        const json = await res.json();
+        const products = json.data ?? [];
+        setAvailableProducts((prev) => append ? [...prev, ...products] : products);
+        setHasMoreProducts(json.pagination?.hasMore ?? false);
+        setProductPage(page);
       }
     } catch {
       toast.error('Failed to load products');
     } finally {
-      setIsLoadingProducts(false);
+      setIsSearching(false);
+      setIsLoadingMore(false);
     }
   }, []);
+
+  const handleManageProducts = useCallback(async (collectionId: string) => {
+    setManageCollectionId(collectionId);
+    setManageDialogOpen(true);
+    setIsLoadingProducts(true);
+    setProductSearch('');
+    setAvailableProducts([]);
+    setProductPage(1);
+    setHasMoreProducts(false);
+
+    try {
+      const colRes = await fetch(`/api/collections/${collectionId}`);
+      if (colRes.ok) {
+        const colJson = await colRes.json();
+        setCollectionProducts(colJson.data?.products ?? []);
+      }
+      // Load first page of all products
+      await fetchProducts('', 1, false);
+    } catch {
+      toast.error('Failed to load collection');
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  }, [fetchProducts]);
+
+  // Debounced search — fires 500ms after user stops typing
+  useEffect(() => {
+    if (!manageDialogOpen) return;
+    const timer = setTimeout(() => {
+      setProductPage(1);
+      fetchProducts(productSearch, 1, false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [productSearch, manageDialogOpen, fetchProducts]);
 
   /**
    * Adds a product to the currently managed collection.
@@ -794,7 +830,20 @@ export default function StorefrontPage() {
               {/* Available products to add */}
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">Available Products</h3>
-                {(() => {
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search products..."
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                {isSearching ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (() => {
                   const productsInCollection = new Set(
                     collectionProducts.map((cp) => cp.productId)
                   );
@@ -804,7 +853,7 @@ export default function StorefrontPage() {
                   if (available.length === 0) {
                     return (
                       <p className="text-sm text-muted-foreground py-2">
-                        No more products available to add.
+                        {productSearch ? 'No products found.' : 'No more products available to add.'}
                       </p>
                     );
                   }
@@ -842,6 +891,20 @@ export default function StorefrontPage() {
                           </Button>
                         </div>
                       ))}
+                      {hasMoreProducts && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => fetchProducts(productSearch, productPage + 1, true)}
+                          disabled={isLoadingMore}
+                        >
+                          {isLoadingMore ? (
+                            <Loader2 className="size-4 animate-spin mr-1.5" />
+                          ) : null}
+                          Load More
+                        </Button>
+                      )}
                     </div>
                   );
                 })()}
