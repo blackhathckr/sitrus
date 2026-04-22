@@ -91,6 +91,7 @@ async function getCreatorCollections(creatorUserId: string) {
               brand: true,
               rating: true,
               isActive: true,
+              sourceUrl: true,
             },
           },
         },
@@ -520,7 +521,7 @@ export default async function CreatorStorefrontPage({ params }: PageProps) {
                       const shortCode = linkMap.get(cp.product.id);
                       const href = shortCode
                         ? `/api/r/${shortCode}`
-                        : '#';
+                        : cp.product.sourceUrl || '#';
 
                       return (
                         <ProductCard
