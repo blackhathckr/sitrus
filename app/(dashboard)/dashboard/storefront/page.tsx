@@ -472,15 +472,6 @@ export default function StorefrontPage() {
 
             {/* Status badges */}
             <div className="flex flex-wrap items-center gap-2">
-              {cp?.isApproved ? (
-                <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-                  Approved
-                </Badge>
-              ) : (
-                <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
-                  Pending Approval
-                </Badge>
-              )}
               {cp?.isPublic ? (
                 <Badge variant="outline" className="gap-1">
                   <Globe className="size-3" />
@@ -493,14 +484,6 @@ export default function StorefrontPage() {
                 </Badge>
               )}
             </div>
-
-            {/* Pending approval banner */}
-            {cp && !cp.isApproved && (
-              <div className="rounded-md border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:border-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300">
-                Your storefront is pending approval by admin. It will not be
-                publicly visible until approved.
-              </div>
-            )}
           </CardContent>
         </Card>
 

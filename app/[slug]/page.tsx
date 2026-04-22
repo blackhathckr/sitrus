@@ -21,6 +21,9 @@ import { Separator } from '@/components/ui/separator';
 import { Instagram, Youtube, Twitter, ExternalLink } from 'lucide-react';
 import type { Metadata } from 'next';
 
+/** Always fetch fresh data — storefronts change when products/collections are updated. */
+export const dynamic = 'force-dynamic';
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -56,7 +59,6 @@ async function getCreatorBySlug(slug: string) {
   });
 
   if (!creatorProfile) return null;
-  if (!creatorProfile.isApproved) return null;
   if (!creatorProfile.isPublic) return null;
   if (!creatorProfile.user.isActive) return null;
 

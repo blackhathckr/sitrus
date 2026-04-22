@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
             create: {
               slug,
               displayName: validatedData.name,
+              isApproved: true,
             },
           },
         },
