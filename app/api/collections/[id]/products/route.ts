@@ -18,6 +18,7 @@ import { hasPermission, isOwnResource } from '@/lib/auth/permissions';
 import { addProductToCollectionSchema } from '@/lib/validations/collection';
 import { ZodError } from 'zod';
 import { Prisma, UserRole } from '@prisma/client';
+import { nanoid } from 'nanoid';
 
 /** Route parameters containing the collection ID. */
 interface RouteParams {
@@ -201,6 +202,45 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         product: true,
       },
     });
+
+    // Auto-create SitLink if one doesn't exist for this creator + product
+    const existingLink = await prisma.link.findFirst({
+      where: { creatorId: collection.creatorId, productId },
+    });
+
+    if (!existingLink) {
+      const fullProduct = await prisma.product.findUnique({
+        where: { id: productId },
+        select: { sourceUrl: true, affiliateBaseUrl: true, brandId: true },
+      });
+
+      if (fullProduct) {
+        const shortCode = nanoid(8);
+        const baseUrl = fullProduct.affiliateBaseUrl || fullProduct.sourceUrl;
+        const separator = baseUrl.includes('?') ? '&' : '?';
+
+        let affiliateUrl: string;
+        if (fullProduct.brandId) {
+          const creatorProfile = await prisma.creatorProfile.findUnique({
+            where: { userId: collection.creatorId },
+            select: { slug: true },
+          });
+          const creatorSlug = creatorProfile?.slug || collection.creatorId;
+          affiliateUrl = `${baseUrl}${separator}utm_source=sitrus&utm_medium=sitlink&utm_campaign=${creatorSlug}&utm_content=${shortCode}`;
+        } else {
+          affiliateUrl = `${baseUrl}${separator}ref=sitrus&code=${shortCode}`;
+        }
+
+        await prisma.link.create({
+          data: {
+            creatorId: collection.creatorId,
+            productId,
+            shortCode,
+            affiliateUrl,
+          },
+        });
+      }
+    }
 
     // Audit log (non-blocking)
     prisma.auditLog.create({
