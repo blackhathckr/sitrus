@@ -512,16 +512,30 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
      */
     async signIn({ user }) {
       try {
-        await prisma.auditLog.create({
-          data: {
-            userId: user.id,
-            action: 'LOGIN',
-            entityType: 'User',
-            entityId: user.id!,
-            ipAddress: null,
-            userAgent: null,
+        // For Google OAuth, user.id may be the provider ID (not the DB ID).
+        // Look up the actual DB user to get the correct ID for the FK.
+        const dbUser = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { id: user.id },
+              { email: user.email?.toLowerCase() },
+            ],
           },
+          select: { id: true },
         });
+
+        if (dbUser) {
+          await prisma.auditLog.create({
+            data: {
+              userId: dbUser.id,
+              action: 'LOGIN',
+              entityType: 'User',
+              entityId: dbUser.id,
+              ipAddress: null,
+              userAgent: null,
+            },
+          });
+        }
       } catch (error) {
         console.error('[Auth] Failed to log sign-in event:', error);
       }
