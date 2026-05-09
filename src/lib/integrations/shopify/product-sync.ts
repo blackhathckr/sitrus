@@ -66,14 +66,15 @@ export async function syncShopifyProducts(
   // Build a set of all existing SKUs in the DB for this brand for fast lookup
   const existingProducts = await prisma.product.findMany({
     where: { brandId, easyecomSku: { not: null } },
-    select: { id: true, easyecomSku: true, imageUrl: true, sourceUrl: true },
+    select: { id: true, title: true, easyecomSku: true, imageUrl: true, sourceUrl: true },
   });
 
-  const skuToProduct = new Map<string, { id: string; imageUrl: string; sourceUrl: string }>();
+  const skuToProduct = new Map<string, { id: string; title: string; imageUrl: string; sourceUrl: string }>();
   for (const p of existingProducts) {
     if (p.easyecomSku) {
       skuToProduct.set(p.easyecomSku.trim().toUpperCase(), {
         id: p.id,
+        title: p.title,
         imageUrl: p.imageUrl,
         sourceUrl: p.sourceUrl,
       });
@@ -119,6 +120,11 @@ export async function syncShopifyProducts(
           const updates: Record<string, unknown> = {};
           const isPlaceholder = existing.imageUrl.includes('placehold');
 
+          // Update title if it looks like a SKU code (e.g. "Z664-B") and Shopify has a proper name
+          const isSKUTitle = /^[A-Z0-9][A-Z0-9-]*$/.test(existing.title.trim());
+          if (isSKUTitle && product.title) {
+            updates.title = product.title;
+          }
           if (imageUrl && isPlaceholder) {
             updates.imageUrl = imageUrl;
           }

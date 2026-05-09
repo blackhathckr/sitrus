@@ -363,11 +363,16 @@ async function handleProductWebhook(
           brandId: integration.brandId,
           easyecomSku: { in: variantSkus, mode: 'insensitive' },
         },
-        select: { id: true, imageUrl: true, sourceUrl: true },
+        select: { id: true, title: true, imageUrl: true, sourceUrl: true },
       });
 
       for (const existing of existingProducts) {
         const updates: Record<string, unknown> = {};
+        // Update title if it looks like a SKU code
+        const isSKUTitle = /^[A-Z0-9][A-Z0-9-]*$/.test(existing.title.trim());
+        if (isSKUTitle && product.title) {
+          updates.title = product.title;
+        }
         if (imageUrl && existing.imageUrl.includes('placehold')) {
           updates.imageUrl = imageUrl;
           updates.images = allImages;
