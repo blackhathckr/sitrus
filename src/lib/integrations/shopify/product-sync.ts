@@ -123,7 +123,11 @@ export async function syncShopifyProducts(
           // Update title if it looks like a SKU code (e.g. "Z664-B") and Shopify has a proper name
           const isSKUTitle = /^[A-Z0-9][A-Z0-9-]*$/.test(existing.title.trim());
           if (isSKUTitle && product.title) {
-            updates.title = product.title;
+            // Extract size from easyecomSku (e.g. "Z664BR-Brown-XS" → "XS")
+            const skuParts = sku.split('-');
+            const sizePart = skuParts[skuParts.length - 1];
+            const isSize = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|FREE|\d{2,3})$/i.test(sizePart);
+            updates.title = isSize ? `${product.title} - ${sizePart}` : product.title;
           }
           if (imageUrl && isPlaceholder) {
             updates.imageUrl = imageUrl;

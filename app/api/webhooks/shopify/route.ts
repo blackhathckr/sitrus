@@ -363,7 +363,7 @@ async function handleProductWebhook(
           brandId: integration.brandId,
           easyecomSku: { in: variantSkus, mode: 'insensitive' },
         },
-        select: { id: true, title: true, imageUrl: true, sourceUrl: true },
+        select: { id: true, title: true, easyecomSku: true, imageUrl: true, sourceUrl: true },
       });
 
       for (const existing of existingProducts) {
@@ -371,7 +371,11 @@ async function handleProductWebhook(
         // Update title if it looks like a SKU code
         const isSKUTitle = /^[A-Z0-9][A-Z0-9-]*$/.test(existing.title.trim());
         if (isSKUTitle && product.title) {
-          updates.title = product.title;
+          // Extract size from easyecomSku (e.g. "Z664BR-Brown-XS" → "XS")
+          const skuParts = (existing as { easyecomSku?: string }).easyecomSku?.split('-') || [];
+          const sizePart = skuParts[skuParts.length - 1] || '';
+          const isSize = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|FREE|\d{2,3})$/i.test(sizePart);
+          updates.title = isSize ? `${product.title} - ${sizePart}` : product.title;
         }
         if (imageUrl && existing.imageUrl.includes('placehold')) {
           updates.imageUrl = imageUrl;
