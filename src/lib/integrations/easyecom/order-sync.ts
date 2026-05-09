@@ -198,12 +198,14 @@ export async function syncOrders(
 
       if (creatorId) attributed++;
 
-      // Calculate order value from items
-      const orderValue = eeOrder.total_amount ||
+      // Calculate order value from items (ensure float, EasyEcom may return string)
+      const orderValue = parseFloat(String(
+        eeOrder.total_amount ||
         eeOrder.sub_order_items?.reduce(
           (sum, item) => sum + item.selling_price * item.qty,
           0
-        ) || 0;
+        ) || 0
+      ));
 
       // Check if order already exists
       const existing = await prisma.brandOrder.findUnique({
