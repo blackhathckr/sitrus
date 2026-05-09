@@ -14,11 +14,23 @@ export interface ShopifyVariant {
   compare_at_price: string | null;
 }
 
+export interface ShopifyImage {
+  id: number;
+  src: string;
+  position: number;
+  variant_ids: number[];
+}
+
 export interface ShopifyProduct {
   id: number;
   title: string;
   handle: string;
   status: string;
+  product_type: string;
+  vendor: string;
+  tags: string;
+  images: ShopifyImage[];
+  image: { src: string } | null;
   variants: ShopifyVariant[];
 }
 

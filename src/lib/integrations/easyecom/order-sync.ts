@@ -98,6 +98,37 @@ async function attributeOrder(utmCampaign: string | null, utmContent: string | n
 }
 
 /**
+ * Safely parse a date string from EasyEcom.
+ * EasyEcom may return dates in various formats (DD-MM-YYYY, DD/MM/YYYY HH:mm:ss, ISO, etc.)
+ * Falls back to current date if parsing fails.
+ */
+function parseEasyEcomDate(dateStr: string | null | undefined): Date {
+  if (!dateStr) return new Date();
+
+  // Try ISO / standard JS parsing first
+  const direct = new Date(dateStr);
+  if (!isNaN(direct.getTime())) return direct;
+
+  // Try DD-MM-YYYY or DD/MM/YYYY (with optional time)
+  const match = dateStr.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (match) {
+    const [, day, month, year, hours, minutes, seconds] = match;
+    const d = new Date(
+      parseInt(year),
+      parseInt(month) - 1,
+      parseInt(day),
+      parseInt(hours || '0'),
+      parseInt(minutes || '0'),
+      parseInt(seconds || '0')
+    );
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  console.warn(`[OrderSync] Could not parse date: "${dateStr}", using current date`);
+  return new Date();
+}
+
+/**
  * Format a date as a monthly period string (e.g. "2026-04").
  */
 function formatPeriod(date: Date): string {
@@ -200,7 +231,7 @@ export async function syncOrders(
         data: {
           brandId,
           easyecomOrderId: orderId,
-          easyecomInvoiceId: eeOrder.invoice_id || null,
+          easyecomInvoiceId: eeOrder.invoice_id ? String(eeOrder.invoice_id) : null,
           creatorId,
           linkId,
           utmSource: utmParams.utmSource,
@@ -213,7 +244,7 @@ export async function syncOrders(
           orderValue,
           status,
           itemCount: eeOrder.sub_order_items?.length || 1,
-          orderedAt: new Date(eeOrder.created_at),
+          orderedAt: parseEasyEcomDate(eeOrder.created_at),
           fulfilledAt: status === 'delivered' ? new Date() : null,
           items: {
             create: (eeOrder.sub_order_items || []).map((item) => ({
@@ -242,7 +273,7 @@ export async function syncOrders(
             linkId,
             amount: orderValue * (brand.commissionRate / 100),
             status: 'PENDING',
-            period: formatPeriod(new Date(eeOrder.created_at)),
+            period: formatPeriod(parseEasyEcomDate(eeOrder.created_at)),
             description: `${brand.id} order #${brandOrder.orderNumber}`,
           },
         });

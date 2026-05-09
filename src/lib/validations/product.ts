@@ -15,7 +15,7 @@ import { Marketplace } from '@prisma/client';
 // =============================================================================
 
 /** Allowed sort options for product search results */
-const PRODUCT_SORT_OPTIONS = ['price_asc', 'price_desc', 'rating', 'newest'] as const;
+const PRODUCT_SORT_OPTIONS = ['price_asc', 'price_desc', 'rating', 'newest', 'images_first'] as const;
 
 // =============================================================================
 // SEARCH SCHEMA
@@ -48,6 +48,8 @@ export const productSearchSchema = z.object({
   limit: z.coerce.number().int().positive().max(100, 'Limit cannot exceed 100').optional().default(20),
   /** Sort order for results */
   sortBy: z.enum(PRODUCT_SORT_OPTIONS).optional(),
+  /** Filter to only show products with real images (not placeholders) */
+  hasImage: z.coerce.boolean().optional(),
 });
 
 /** Inferred type for product search input */

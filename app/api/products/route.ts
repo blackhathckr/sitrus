@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
       page,
       limit,
       sortBy,
+      hasImage,
     } = productSearchSchema.parse(queryParams);
 
     // Build the where clause — only active products are publicly visible
@@ -82,14 +83,20 @@ export async function GET(request: NextRequest) {
       where.title = { contains: search, mode: 'insensitive' };
     }
 
+    if (hasImage) {
+      where.imageUrl = { not: { contains: 'placehold' } };
+    }
+
     // Map sortBy option to Prisma orderBy clause
+    // Default sort puts products with real images first, then newest
     const sortMapping: Record<string, Prisma.ProductOrderByWithRelationInput> = {
       price_asc: { price: 'asc' },
       price_desc: { price: 'desc' },
       rating: { rating: 'desc' },
       newest: { createdAt: 'desc' },
+      images_first: { createdAt: 'desc' },
     };
-    const orderBy = sortBy ? sortMapping[sortBy] : { createdAt: 'desc' };
+    const orderBy: Prisma.ProductOrderByWithRelationInput = sortBy ? sortMapping[sortBy] : { createdAt: 'desc' };
 
     // Execute count and data queries in parallel for performance
     const [total, products] = await Promise.all([
@@ -124,6 +131,17 @@ export async function GET(request: NextRequest) {
         },
       }),
     ]);
+
+    // Sort products with real images before placeholders
+    const isPlaceholder = (url: string) => url.includes('placehold');
+    if (!sortBy || sortBy === 'images_first') {
+      products.sort((a, b) => {
+        const aPlaceholder = isPlaceholder(a.imageUrl);
+        const bPlaceholder = isPlaceholder(b.imageUrl);
+        if (aPlaceholder !== bPlaceholder) return aPlaceholder ? 1 : -1;
+        return 0; // preserve DB order (createdAt desc) for same-group items
+      });
+    }
 
     const totalPages = Math.ceil(total / limit);
     const hasMore = page < totalPages;

@@ -18,7 +18,7 @@ import { createHmac } from 'crypto';
 import { prisma } from '@/lib/db/prisma';
 import { EarningStatus } from '@prisma/client';
 import { decrypt } from '@/lib/crypto/encryption';
-import type { ShopifyOrder } from '@/lib/integrations/shopify/types';
+import type { ShopifyOrder, ShopifyProduct } from '@/lib/integrations/shopify/types';
 
 /**
  * Verify Shopify HMAC-SHA256 webhook signature.
@@ -127,14 +127,20 @@ export async function POST(request: NextRequest) {
     }
 
     const topic = request.headers.get('x-shopify-topic');
-    const order: ShopifyOrder = JSON.parse(rawBody);
 
-    console.log(`[Shopify Webhook] ${topic} for order ${order.name} from ${shopDomain}`);
+    console.log(`[Shopify Webhook] ${topic} from ${shopDomain}`);
 
-    // Only process order events
+    // Handle product events
+    if (topic?.startsWith('products/')) {
+      return handleProductWebhook(topic, rawBody, shopDomain!);
+    }
+
+    // Only process order events beyond this point
     if (!topic?.startsWith('orders/')) {
       return NextResponse.json({ status: 'ok', event: 'ignored' });
     }
+
+    const order: ShopifyOrder = JSON.parse(rawBody);
 
     const utm = extractUtmParams(order);
 
@@ -307,5 +313,136 @@ export async function POST(request: NextRequest) {
       { error: 'Webhook processing failed' },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Handle products/create and products/update webhooks.
+ * Creates or updates a Product record in Sitrus when a product is
+ * added or changed on Shopify — fills the gap for products not in EasyEcom.
+ */
+async function handleProductWebhook(
+  topic: string,
+  rawBody: string,
+  shopDomain: string
+): Promise<NextResponse> {
+  try {
+    const product: ShopifyProduct = JSON.parse(rawBody);
+    console.log(`[Shopify Webhook] ${topic} for product "${product.title}" from ${shopDomain}`);
+
+    const integration = await prisma.brandIntegration.findFirst({
+      where: { shopifyDomain: shopDomain },
+      select: { brandId: true },
+    });
+
+    if (!integration) {
+      return NextResponse.json({ error: 'Unknown shop' }, { status: 400 });
+    }
+
+    const brand = await prisma.brand.findUnique({
+      where: { id: integration.brandId },
+      select: { websiteUrl: true, commissionRate: true },
+    });
+
+    const baseUrl = brand?.websiteUrl
+      ? brand.websiteUrl.replace(/\/$/, '')
+      : `https://${shopDomain}`;
+
+    const productUrl = `${baseUrl}/products/${product.handle}`;
+    const imageUrl = product.image?.src || product.images?.[0]?.src || null;
+    const allImages = (product.images || []).map((img: { src: string }) => img.src);
+
+    // Check if any variant SKU matches an existing EasyEcom product
+    const variantSkus = product.variants
+      .map((v) => v.sku?.trim().toUpperCase())
+      .filter((s): s is string => !!s);
+
+    if (variantSkus.length > 0) {
+      const existingProducts = await prisma.product.findMany({
+        where: {
+          brandId: integration.brandId,
+          easyecomSku: { in: variantSkus, mode: 'insensitive' },
+        },
+        select: { id: true, imageUrl: true, sourceUrl: true },
+      });
+
+      for (const existing of existingProducts) {
+        const updates: Record<string, unknown> = {};
+        if (imageUrl && existing.imageUrl.includes('placehold')) {
+          updates.imageUrl = imageUrl;
+          updates.images = allImages;
+        }
+        if (existing.sourceUrl !== productUrl) {
+          updates.sourceUrl = productUrl;
+        }
+        if (Object.keys(updates).length > 0) {
+          await prisma.product.update({ where: { id: existing.id }, data: updates });
+        }
+      }
+
+      if (existingProducts.length > 0) {
+        return NextResponse.json({ status: 'ok', event: 'product_updated_existing' });
+      }
+    }
+
+    // No SKU match — check if Shopify-only product already exists by URL
+    const existingByUrl = await prisma.product.findFirst({
+      where: { brandId: integration.brandId, sourceUrl: productUrl },
+    });
+
+    if (existingByUrl) {
+      // Update existing Shopify-only product
+      const updates: Record<string, unknown> = {
+        title: product.title,
+        isActive: product.status === 'active',
+      };
+      if (imageUrl) {
+        updates.imageUrl = imageUrl;
+        updates.images = allImages;
+      }
+      const firstVariant = product.variants[0];
+      if (firstVariant) {
+        updates.price = parseFloat(firstVariant.price) || 0;
+        const compareAt = firstVariant.compare_at_price ? parseFloat(firstVariant.compare_at_price) : null;
+        if (compareAt && compareAt > (updates.price as number)) updates.originalPrice = compareAt;
+      }
+      updates.inStock = product.variants.some((v) => v.inventory_quantity > 0);
+
+      await prisma.product.update({ where: { id: existingByUrl.id }, data: updates });
+      return NextResponse.json({ status: 'ok', event: 'product_updated' });
+    }
+
+    // New Shopify-only product — create it
+    if (product.status !== 'active') {
+      return NextResponse.json({ status: 'ok', event: 'product_skipped_inactive' });
+    }
+
+    const firstVariant = product.variants[0];
+    const price = firstVariant ? parseFloat(firstVariant.price) || 0 : 0;
+    const compareAt = firstVariant?.compare_at_price ? parseFloat(firstVariant.compare_at_price) : null;
+    const originalPrice = compareAt && compareAt > price ? compareAt : null;
+    const totalStock = product.variants.reduce((sum, v) => sum + (v.inventory_quantity || 0), 0);
+
+    await prisma.product.create({
+      data: {
+        title: product.title,
+        imageUrl: imageUrl || 'https://placehold.co/400x400?text=No+Image',
+        images: allImages,
+        price,
+        originalPrice,
+        sourceUrl: productUrl,
+        category: product.product_type || 'Uncategorized',
+        brand: product.vendor || null,
+        brandId: integration.brandId,
+        inStock: totalStock > 0,
+        isActive: true,
+        commissionRate: brand?.commissionRate,
+      },
+    });
+
+    return NextResponse.json({ status: 'ok', event: 'product_created' }, { status: 201 });
+  } catch (error) {
+    console.error('[Shopify Webhook] Product event error:', error);
+    return NextResponse.json({ error: 'Product webhook failed' }, { status: 500 });
   }
 }

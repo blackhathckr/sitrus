@@ -129,7 +129,7 @@ export class ShopifyClient {
    */
   async getAllProducts(): Promise<ShopifyProduct[]> {
     const allProducts: ShopifyProduct[] = [];
-    let url: string | null = `https://${this.domain}/admin/api/${API_VERSION}/products.json?limit=${MAX_PER_PAGE}&fields=id,title,handle,status,variants`;
+    let url: string | null = `https://${this.domain}/admin/api/${API_VERSION}/products.json?limit=${MAX_PER_PAGE}&fields=id,title,handle,status,product_type,vendor,tags,images,image,variants`;
 
     while (url) {
       const response = await this.fetchWithRetry(url);
@@ -154,7 +154,7 @@ export class ShopifyClient {
    * Idempotent — checks existing webhooks and only creates missing ones.
    */
   async registerWebhooks(baseUrl: string): Promise<{ created: string[]; existing: string[] }> {
-    const topics = ['orders/create', 'orders/updated'];
+    const topics = ['orders/create', 'orders/updated', 'products/create', 'products/update'];
     const created: string[] = [];
     const existing: string[] = [];
 
