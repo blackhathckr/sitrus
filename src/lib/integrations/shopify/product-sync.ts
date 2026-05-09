@@ -105,14 +105,12 @@ export async function syncShopifyProducts(
       const imageUrl = product.image?.src || product.images?.[0]?.src || null;
       const allImages = (product.images || []).map((img) => img.src);
 
-      // Collect all SKUs for this Shopify product
-      const variantSkus = product.variants
-        .map((v) => v.sku?.trim().toUpperCase())
-        .filter((s): s is string => !!s);
-
       // Check if any variant SKU matches an existing EasyEcom product
       let matched = false;
-      for (const sku of variantSkus) {
+      for (const variant of product.variants) {
+        const sku = variant.sku?.trim().toUpperCase();
+        if (!sku) continue;
+
         const existing = skuToProduct.get(sku);
         if (existing) {
           matched = true;
@@ -123,11 +121,9 @@ export async function syncShopifyProducts(
           // Update title if it looks like a SKU code (e.g. "Z664-B") and Shopify has a proper name
           const isSKUTitle = /^[A-Z0-9][A-Z0-9-]*$/.test(existing.title.trim());
           if (isSKUTitle && product.title) {
-            // Extract size from easyecomSku (e.g. "Z664BR-Brown-XS" → "XS")
-            const skuParts = sku.split('-');
-            const sizePart = skuParts[skuParts.length - 1];
-            const isSize = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|FREE|\d{2,3})$/i.test(sizePart);
-            updates.title = isSize ? `${product.title} - ${sizePart}` : product.title;
+            // Use Shopify variant title (e.g. "XS / Brown") for size suffix — this is standardized
+            const variantLabel = variant.title && variant.title !== 'Default Title' ? variant.title : null;
+            updates.title = variantLabel ? `${product.title} - ${variantLabel}` : product.title;
           }
           if (imageUrl && isPlaceholder) {
             updates.imageUrl = imageUrl;

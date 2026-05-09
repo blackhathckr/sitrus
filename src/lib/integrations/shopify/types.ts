@@ -9,6 +9,9 @@ export interface ShopifyVariant {
   product_id: number;
   title: string;
   sku: string | null;
+  option1: string | null;
+  option2: string | null;
+  option3: string | null;
   inventory_quantity: number;
   price: string;
   compare_at_price: string | null;
