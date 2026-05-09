@@ -14,7 +14,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
-import { Search, Plus, Loader2, ShoppingBag } from 'lucide-react';
+import { Search, Plus, Loader2, ShoppingBag, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -174,6 +174,7 @@ export default function ProductsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [category, setCategory] = useState<string>('');
   const [marketplace, setMarketplace] = useState<string>('');
+  const [hasImage, setHasImage] = useState(false);
 
   // Tracks which product is currently having a link created (by product id)
   const [creatingLinkFor, setCreatingLinkFor] = useState<string | null>(null);
@@ -211,6 +212,7 @@ export default function ProductsPage() {
       search: string,
       cat: string,
       mp: string,
+      imageOnly: boolean,
     ) => {
       setIsLoading(true);
       setError(null);
@@ -224,6 +226,7 @@ export default function ProductsPage() {
         if (search) params.set('search', search);
         if (cat) params.set('category', cat);
         if (mp) params.set('marketplace', mp);
+        if (imageOnly) params.set('hasImage', 'true');
 
         const res = await fetch(`/api/products?${params.toString()}`);
 
@@ -249,10 +252,10 @@ export default function ProductsPage() {
     [],
   );
 
-  /** Re-fetch whenever page, debounced search, category, or marketplace changes */
+  /** Re-fetch whenever page, debounced search, category, marketplace, or hasImage changes */
   useEffect(() => {
-    fetchProducts(page, debouncedSearch, category, marketplace);
-  }, [page, debouncedSearch, category, marketplace, fetchProducts]);
+    fetchProducts(page, debouncedSearch, category, marketplace, hasImage);
+  }, [page, debouncedSearch, category, marketplace, hasImage, fetchProducts]);
 
   // ---- Handlers -------------------------------------------------------------
 
@@ -397,6 +400,17 @@ export default function ProductsPage() {
             ))}
           </SelectContent>
         </Select>
+
+        {/* Has Image Toggle */}
+        <Button
+          variant={hasImage ? 'default' : 'outline'}
+          size="sm"
+          className="gap-1.5"
+          onClick={() => { setHasImage((prev) => !prev); setPage(1); }}
+        >
+          <ImageIcon className="size-3.5" />
+          With Images
+        </Button>
       </div>
 
       {/* Loading State: Skeleton Grid */}
@@ -415,7 +429,7 @@ export default function ProductsPage() {
           <Button
             variant="outline"
             onClick={() =>
-              fetchProducts(page, debouncedSearch, category, marketplace)
+              fetchProducts(page, debouncedSearch, category, marketplace, hasImage)
             }
           >
             Try Again
@@ -430,13 +444,14 @@ export default function ProductsPage() {
             name="products"
             description="No products found"
             action={
-              (debouncedSearch || category || marketplace) ? (
+              (debouncedSearch || category || marketplace || hasImage) ? (
                 <Button
                   variant="outline"
                   onClick={() => {
                     setSearchQuery('');
                     setCategory('');
                     setMarketplace('');
+                    setHasImage(false);
                     setPage(1);
                   }}
                 >
