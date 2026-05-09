@@ -203,9 +203,13 @@ export default function AdminIntegrationsPage() {
         throw new Error(json.error || 'Sync failed');
       }
       const json = await res.json();
-      toast.success(
-        `Product sync complete: ${json.data.created} created, ${json.data.updated} updated (${(json.data.durationMs / 1000).toFixed(1)}s)`
-      );
+      const ee = json.data.easyecom;
+      const sh = json.data.shopify;
+      const parts = [`EasyEcom: ${ee.created} created, ${ee.updated} updated`];
+      if (sh && !sh.error) {
+        parts.push(`Shopify: ${sh.created} created, ${sh.updated} updated`);
+      }
+      toast.success(`Product sync complete — ${parts.join(' | ')}`);
       await fetchIntegrations();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Product sync failed');
