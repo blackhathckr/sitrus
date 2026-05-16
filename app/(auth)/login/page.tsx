@@ -1,10 +1,9 @@
 /**
  * Login Page
  *
- * Sitrus authentication page with three login methods:
- * - Email/Password (for creators and admins)
- * - Google OAuth (for creators)
- * - Admin (dedicated admin tab)
+ * Sitrus authentication page for creators with two login methods:
+ * - Email/Password
+ * - Google OAuth
  *
  * @module app/(auth)/login/page
  */
@@ -16,7 +15,7 @@ import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { Loader2, Eye, EyeOff, Mail, ShieldCheck } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Mail } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,13 +42,9 @@ export default function LoginPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showAdminPassword, setShowAdminPassword] = useState(false);
 
   // Creator email login form state
   const [emailForm, setEmailForm] = useState({ email: '', password: '' });
-
-  // Admin login form state
-  const [adminForm, setAdminForm] = useState({ email: '', password: '' });
 
   // ---------------------------------------------------------------------------
   // Google Sign-In
@@ -79,38 +74,15 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        toast.error(result.error);
+        // NextAuth v5 returns generic "Configuration" for credential failures
+        const message =
+          result.error === 'Configuration'
+            ? 'Invalid email or password'
+            : result.error;
+        toast.error(message);
       } else {
         toast.success('Login successful!');
         router.push(callbackUrl);
-        router.refresh();
-      }
-    } catch {
-      toast.error('An error occurred during login');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ---------------------------------------------------------------------------
-  // Admin Email/Password Sign-In
-  // ---------------------------------------------------------------------------
-  const handleAdminSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      const result = await signIn('credentials', {
-        email: adminForm.email,
-        password: adminForm.password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        toast.error(result.error);
-      } else {
-        toast.success('Admin login successful!');
-        router.push('/admin');
         router.refresh();
       }
     } catch {
@@ -159,10 +131,9 @@ export default function LoginPage() {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="email" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="email">Email</TabsTrigger>
                   <TabsTrigger value="google">Google</TabsTrigger>
-                  <TabsTrigger value="admin">Admin</TabsTrigger>
                 </TabsList>
 
                 {/* Email Tab - Creator Email/Password */}
@@ -323,73 +294,6 @@ export default function LoginPage() {
                   </div>
                 </TabsContent>
 
-                {/* Admin Tab */}
-                <TabsContent value="admin" className="space-y-4 pt-4">
-                  <form onSubmit={handleAdminSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="admin-email">Admin Email</Label>
-                      <Input
-                        id="admin-email"
-                        type="email"
-                        required
-                        value={adminForm.email}
-                        onChange={(e) =>
-                          setAdminForm((prev) => ({
-                            ...prev,
-                            email: e.target.value,
-                          }))
-                        }
-                        placeholder="admin@sitrus.club"
-                        disabled={isLoading}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="admin-password">Password</Label>
-                      <div className="relative">
-                        <Input
-                          id="admin-password"
-                          type={showAdminPassword ? 'text' : 'password'}
-                          required
-                          value={adminForm.password}
-                          onChange={(e) =>
-                            setAdminForm((prev) => ({
-                              ...prev,
-                              password: e.target.value,
-                            }))
-                          }
-                          placeholder="Enter admin password"
-                          disabled={isLoading}
-                          className="pr-10"
-                        />
-                        <PasswordToggle
-                          show={showAdminPassword}
-                          onToggle={() =>
-                            setShowAdminPassword(!showAdminPassword)
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    <Button
-                      type="submit"
-                      disabled={isLoading}
-                      className="h-10 w-full"
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 size-4 animate-spin" />
-                          Signing in...
-                        </>
-                      ) : (
-                        <>
-                          <ShieldCheck className="mr-2 size-4" />
-                          Admin Sign In
-                        </>
-                      )}
-                    </Button>
-                  </form>
-                </TabsContent>
               </Tabs>
             </CardContent>
           </Card>

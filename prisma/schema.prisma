@@ -84,6 +84,7 @@ model User {
   collections    Collection[]
   auditLogs      AuditLog[]
   brandOrders    BrandOrder[]
+  aiChatLogs     AiChatLog[]
 
   @@index([email])
   @@index([phone])
@@ -474,6 +475,30 @@ model BrandOrder {
   @@index([status])
   @@index([orderedAt])
   @@map("brand_orders")
+}
+
+// =============================================================================
+// AI CHAT LOGS (token tracking per creator)
+// =============================================================================
+
+model AiChatLog {
+  id           String @id @default(cuid())
+  creatorId    String
+  creator      User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  model        String   // e.g. "gpt-4o-mini"
+  inputTokens  Int
+  outputTokens Int
+  totalTokens  Int
+  costUsd      Float    // calculated from pricing
+  latencyMs    Int
+
+  createdAt    DateTime @default(now())
+
+  @@index([creatorId])
+  @@index([createdAt])
+  @@index([creatorId, createdAt])
+  @@map("ai_chat_logs")
 }
 
 // =============================================================================

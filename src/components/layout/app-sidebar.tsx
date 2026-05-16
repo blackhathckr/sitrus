@@ -19,6 +19,7 @@ import {
   Store,
   IndianRupee,
   UserCircle,
+  Sparkles,
 } from "lucide-react"
 
 import { NavMain } from "@/components/layout/nav-main"
@@ -73,6 +74,11 @@ const creatorNav = [
     title: "Storefront",
     url: "/dashboard/storefront",
     icon: Store,
+  },
+  {
+    title: "Sitrus AI",
+    url: "/dashboard/ai",
+    icon: Sparkles,
   },
   {
     title: "Earnings",

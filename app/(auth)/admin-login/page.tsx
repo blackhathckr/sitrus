@@ -35,7 +35,11 @@ export default function AdminLoginPage() {
       });
 
       if (result?.error) {
-        toast.error(result.error);
+        const message =
+          result.error === 'Configuration'
+            ? 'Invalid email or password'
+            : result.error;
+        toast.error(message);
       } else {
         toast.success('Login successful!');
         router.push('/admin');

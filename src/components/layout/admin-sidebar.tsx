@@ -21,6 +21,7 @@ import {
   Tag,
   Plug,
   ShoppingCart,
+  Sparkles,
 } from "lucide-react"
 
 import { NavMain } from "@/components/layout/nav-main"
@@ -99,6 +100,11 @@ const adminNav = [
     title: "Payouts",
     url: "/admin/payouts",
     icon: Wallet,
+  },
+  {
+    title: "AI Usage",
+    url: "/admin/ai-usage",
+    icon: Sparkles,
   },
 ]
 
